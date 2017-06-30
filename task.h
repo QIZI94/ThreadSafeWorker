@@ -1,9 +1,31 @@
+/******************************  <Zlib>  **************************************
+ * Copyright (c) 2017 Martin Baláž (QIZI94)
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty. In no event will the authors be held liable for any damages
+ * arising from the use of this software.
+ *
+ * Permission is granted to anyone to use this software for any purpose,
+ * including commercial applications, and to alter it and redistribute it
+ * freely, subject to the following restrictions:
+ *
+ * 1. The origin of this software must not be misrepresented; you must not
+ *    claim that you wrote the original software. If you use this software
+ *    in a product, an acknowledgment in the product documentation would be
+ *    appreciated but is not required.
+ * 2. Altered source versions must be plainly marked as such, and must not be
+ *    misrepresented as being the original software.
+ * 3. This notice may not be removed or altered from any source distribution.
+ *
+******************************************************************************/
+
 #ifndef TASK_H
 #define TASK_H
 #include <atomic>
 #include <ctime>
-namespace TSWorker{
+#include <mutex>
 
+namespace TSWorker{
 
     class Task
     {
@@ -13,17 +35,7 @@ namespace TSWorker{
 
         public:
             enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1};
-            /** Default constructor */
-            /*****************************************************//**
-            * Default constructor which is used to set inhereted task's priority.
-            *
-            * @param taskPriority - task priority that can eather be
-            * LOW_PRIO or HIGH_PRIO
-            *
-            * @note Constructor will add itself to pending addition list.
-            *
-            ***********************************************************/
-            Task(enum TaskPriority taskPriority = HIGH_PRIO);
+
 
 
             /*****************************************************//**
@@ -75,7 +87,7 @@ namespace TSWorker{
             * @see remove()
             *
             ***********************************************************/
-            void assign(const TaskPriority taskPriority);
+            void subscribe(const TaskPriority taskPriority);
 
             /*****************************************************//**
             * This function will add task to remove list
@@ -125,18 +137,23 @@ namespace TSWorker{
 
         protected:
             /*****************************************************//**
-            * This function be used to handle Task,
-            *  it's pure virtual by defualt.
+            * This function be used to handle Task and
+            *  it's virtual by defualt.
             *
             * @note You must provide you own implemetation in inhereted class.
+            * @note This functions should be only executed by _execute() fucntion
             *
             * @see _execute()
             *
             ***********************************************************/
-            virtual void  run() = 0;
+            virtual void  run(){removeAndDelete();}
+
 
 
         private:
+
+            enum TaskRemoveMode {NOACTION_MODE = 0, REMOVE_MODE = 1, DELETE_MODE = 2};
+
 
             /*****************************************************//**
             * This function will execute run when requirements are met
@@ -152,14 +169,15 @@ namespace TSWorker{
             ***********************************************************/
             bool _execute();
 
-            std::atomic<bool> _isMainThreaded;          ///< is used for Tasks that require to be executed on main thread
-            std::atomic<bool> _isUsedByThread;          ///< is used to detect if Task is already executed by functions
-            std::atomic<bool> _isAlreadyExecuted;       ///< is used to check if Task has been executed in this round/context
-            std::atomic<bool> _isEnabled;               ///< is used to check if Task is enabled or to ingnored it if not
-            std::atomic<bool> _isHighPriority;          ///< is used to check if Task is high priority
-            std::atomic<bool> _isGoingToBeDeleted;      ///< is used to trigger deleting in 'MasterTask'
-            std::atomic<bool> _isExecutedByDependency;  ///< is used to ignore such Task because it will be executed by other Task
-            std::atomic<bool> _isGoingToBeRemoved;
+            std::mutex                  _taskMutex;                 ///< esures that task is only executed on one thread at the time
+            std::atomic<TaskRemoveMode> _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
+            std::atomic<bool>           _isUsedByThread;            ///< is used to detect if Task is already executed by functions
+            std::atomic<bool>           _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
+
+            std::atomic<bool>           _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
+            bool                        _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
+            TaskPriority                _taskPriority;              ///< is used to check if Task is high priority
+
     };
 
 
