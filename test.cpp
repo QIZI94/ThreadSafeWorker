@@ -7,7 +7,7 @@
 struct test1 : TSWorker::Task{
 
     test1() {
-        subscribe(TSWorker::Task::LOW_PRIO);
+        assign(TSWorker::Task::LOW_PRIO);
     }
     private:
     void run(){
@@ -24,7 +24,7 @@ struct test1 : TSWorker::Task{
 struct test2 : TSWorker::Task{
 
     test2() {
-        subscribe(TSWorker::Task::LOW_PRIO);
+        assign(TSWorker::Task::LOW_PRIO);
 
     }
     private:
@@ -38,7 +38,7 @@ struct test2 : TSWorker::Task{
         if(c > 0){
             std::cout<<"Duplicated execution"<<'\n';
             std::cin.get();
-        //    std::cin.get();
+            std::cin.get();
 
         }
         c++;
@@ -56,6 +56,29 @@ struct test2 : TSWorker::Task{
 
 };
 
+
+struct taskA : public TSWorker::Task{
+
+    void run(){
+       // assign(TSWorker::Task::LOW_PRIO);
+        std::cout<<"This si ###pretask###\n";
+    }
+
+} ta;
+
+struct taskB : public TSWorker::Task{
+    taskB(){
+        assign(TSWorker::Task::LOW_PRIO);
+        setDependency(&ta);
+
+    }
+    void run(){
+        std::cout<<"This si ###posttask###\n";
+    }
+
+} tb ;
+
+
 void threadFunction(){
     while(TSWorker::taskHandler() == true);
 
@@ -65,7 +88,10 @@ int main(){
 
     std::cout<<"Sizeof: "<<sizeof(std::mutex)<<'\0';
    //std::cin.get();
-    test1* t1 = new test1;
+    //test1* t1 = new test1;
+
+
+    test1 t1;
    // t1.assign(TSWorker::Task::LOW_PRIO);
  //   TSWorker::Task* ts = new test2;
 

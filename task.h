@@ -36,6 +36,10 @@ namespace TSWorker{
         public:
             enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1};
 
+            Task();
+
+
+            void bindToThread();
 
 
             /*****************************************************//**
@@ -50,7 +54,25 @@ namespace TSWorker{
             *
             ***********************************************************/
             template<typename ...Dependency>
-            void setDependency(Dependency... dependecies);
+            void setDependency(Dependency... dependecies){
+                std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
+                Task* currentTask = this;
+                for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); taskDependencyIndex++){
+                    if(deps[taskDependencyIndex]->_isExecutedByDependency == false){
+                        currentTask->_dependentTask = deps[taskDependencyIndex];
+                        currentTask->_dependentTask->_isExecutedByDependency = true;
+                        currentTask->_dependentTask->_isAlreadyExecuted      = true;
+
+                        currentTask->_dependentTask->remove();
+                        currentTask = currentTask->_dependentTask;
+                    }
+                }
+        //upcomming implementation
+            }
+
+
+            void killDependency();
+
 
 
             /*****************************************************//**
@@ -80,6 +102,8 @@ namespace TSWorker{
             * This function will add this to pending addition list
             *  and will be added when 'MasterTask' routine will add it to task queue.
             *
+            * @param taskPriority - Task priority to which will Task be assign.
+            *
             * @note Can be used when removed by remove() function,
             *  or when auto-assign is disabled by global variable.
             *
@@ -87,7 +111,7 @@ namespace TSWorker{
             * @see remove()
             *
             ***********************************************************/
-            void subscribe(const TaskPriority taskPriority);
+            void assign(const TaskPriority taskPriority);
 
             /*****************************************************//**
             * This function will add task to remove list
@@ -97,6 +121,7 @@ namespace TSWorker{
             *  it will just gets ignored (this could result in performance difference).
             *
             * @see disable()
+            * @see removeAndDelete()
             *
             ***********************************************************/
             void remove();
@@ -138,7 +163,7 @@ namespace TSWorker{
         protected:
             /*****************************************************//**
             * This function be used to handle Task and
-            *  it's virtual by defualt.
+            *  it's pure virtual by defualt.
             *
             * @note You must provide you own implemetation in inhereted class.
             * @note This functions should be only executed by _execute() fucntion
@@ -146,7 +171,7 @@ namespace TSWorker{
             * @see _execute()
             *
             ***********************************************************/
-            virtual void  run(){removeAndDelete();}
+            virtual void  run() = 0;
 
 
 
@@ -170,12 +195,13 @@ namespace TSWorker{
             bool _execute();
 
             std::mutex                  _taskMutex;                 ///< esures that task is only executed on one thread at the time
+            Task*                       _dependentTask;
             ///std::chrono::steady_clock::time_point timeOfStart;
             std::atomic<TaskRemoveMode> _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
             std::atomic<bool>           _isUsedByThread;            ///< is used to detect if Task is already executed by functions
             std::atomic<bool>           _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
             std::atomic<bool>           _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
-            bool                        _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
+            std::atomic<bool>           _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
             TaskPriority                _taskPriority;              ///< is used to check if Task is high priority
 
     };
