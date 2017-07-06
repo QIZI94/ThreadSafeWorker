@@ -20,21 +20,28 @@ struct test1 : TSWorker::Task{
 };
 
 
-
+#include <atomic>
 struct test2 : TSWorker::Task{
 
     test2() {
         subscribe(TSWorker::Task::LOW_PRIO);
+
     }
     private:
-    int c = 0;
+    volatile unsigned char c = 0;
     void run(){
 
-        std::cout<<"And also am I /************************\ address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
+        std::cout<<"And also am I /************************... address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
 
         //getchar();
         //remove();
+        if(c > 0){
+            std::cout<<"Duplicated execution"<<'\n';
+            std::cin.get();
+        //    std::cin.get();
 
+        }
+        c++;
 
         removeAndDelete();
 
@@ -96,6 +103,9 @@ int main(){
            new test2;
            new test2;
            new test2;
+
+
+
            // (new test2)->assign(TSWorker::Task::LOW_PRIO);
             //t->assign(TSWorker::Task::LOW_PRIO);
             timeOfStart = std::chrono::steady_clock::now();
