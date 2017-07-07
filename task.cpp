@@ -32,7 +32,7 @@
 
 
 namespace TSWorker{
-
+    std::thread::id __TF_DefaultDhreadID;
 
     std::atomic<bool> quitTaskHandling(false);
 
@@ -47,15 +47,23 @@ namespace TSWorker{
 
 
     /** Task functions implemetation **/
-
     Task::Task(){
+
         _dependentTask = nullptr;
         _taskRemoveMode = REMOVE_MODE;
+        _bindedThread = __TF_DefaultDhreadID;
     }
 
 
+    void Task::bindToThread(std::thread::id threadID){
+        _bindedThread = threadID;
+    }
+    void Task::unbind(){
+        _bindedThread = __TF_DefaultDhreadID;
+    }
 
-    void Task::killDependency(){
+
+    void Task::removeFromChain(){
 
     }
 
@@ -67,7 +75,7 @@ namespace TSWorker{
         _isEnabled = false;
     }
 
-    void Task::assign(const TaskPriority taskPriority){
+    void Task::subscribe(const TaskPriority taskPriority){
 
         if(_taskRemoveMode == REMOVE_MODE){
             _taskPriority           = taskPriority;
@@ -239,6 +247,7 @@ namespace TSWorker{
 
                 lowPrioCleaning = true;
 
+
                 if(lowPrioRemoveMutex.try_lock()){
                     for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); taskIndex++ ){
                         Task* currentTask = lowPriorityTaskQueue[taskIndex];
@@ -250,13 +259,13 @@ namespace TSWorker{
                             if(currentTask->_taskRemoveMode == DELETE_MODE){
                                 delete currentTask;
                             }
+                            taskIndex--;
                         }
 
                     }
                     lowPrioRemoveMutex.unlock();
 
                 }
-
 
 
                 if(lowPrioAddMutex.try_lock()){

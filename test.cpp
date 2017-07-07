@@ -7,7 +7,7 @@
 struct test1 : TSWorker::Task{
 
     test1() {
-        assign(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::LOW_PRIO);
     }
     private:
     void run(){
@@ -24,7 +24,7 @@ struct test1 : TSWorker::Task{
 struct test2 : TSWorker::Task{
 
     test2() {
-        assign(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::LOW_PRIO);
 
     }
     private:
@@ -60,7 +60,7 @@ struct test2 : TSWorker::Task{
 struct taskA : public TSWorker::Task{
 
     void run(){
-       // assign(TSWorker::Task::LOW_PRIO);
+       // subscribe(TSWorker::Task::LOW_PRIO);
         std::cout<<"This si ###pretask###\n";
     }
 
@@ -68,7 +68,7 @@ struct taskA : public TSWorker::Task{
 
 struct taskB : public TSWorker::Task{
     taskB(){
-        assign(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::LOW_PRIO);
         setDependency(&ta);
 
     }
@@ -92,10 +92,10 @@ int main(){
 
 
     test1 t1;
-   // t1.assign(TSWorker::Task::LOW_PRIO);
+   // t1.subscribe(TSWorker::Task::LOW_PRIO);
  //   TSWorker::Task* ts = new test2;
 
-   /* ts->assign(TSWorker::Task::LOW_PRIO);*/
+   /* ts->subscribe(TSWorker::Task::LOW_PRIO);*/
     //new test2;
     std::thread th1(threadFunction);
     std::thread th2(threadFunction);
@@ -119,7 +119,7 @@ int main(){
 
 
     for(;;){
-        if(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timeOfStart).count() > 10000){
+        if(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timeOfStart).count() > 1000){
            new test2;
            new test2;
            new test2;
@@ -132,8 +132,8 @@ int main(){
 
 
 
-           // (new test2)->assign(TSWorker::Task::LOW_PRIO);
-            //t->assign(TSWorker::Task::LOW_PRIO);
+           // (new test2)->subscribe(TSWorker::Task::LOW_PRIO);
+            //t->subscribe(TSWorker::Task::LOW_PRIO);
             timeOfStart = std::chrono::steady_clock::now();
         }
 

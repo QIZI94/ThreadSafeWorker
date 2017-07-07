@@ -24,6 +24,7 @@
 #include <atomic>
 #include <ctime>
 #include <mutex>
+#include <thread>
 
 namespace TSWorker{
 
@@ -39,15 +40,16 @@ namespace TSWorker{
             Task();
 
 
-            void bindToThread();
+            void bindToThread(std::thread::id threadID = std::this_thread::get_id());
+            void unbind();
 
 
             /*****************************************************//**
-            * Fuction is used to set dependecies/tasks that will be executed
+            * Function is used to set dependencies/tasks that will be executed
             *  by this Task before executing this task,
             *  its meant to preserve context of execution.
             *
-            * @param dependecies - an adaptive parameter that can take any number of parameters
+            * @param dependencies - an adaptive parameter that can take any number of parameters
             *  to the left
             *
             * @note This function only takes pointers to Task (Task*).
@@ -55,6 +57,7 @@ namespace TSWorker{
             ***********************************************************/
             template<typename ...Dependency>
             void setDependency(Dependency... dependecies){
+
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
                 Task* currentTask = this;
                 for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); taskDependencyIndex++){
@@ -71,20 +74,20 @@ namespace TSWorker{
             }
 
 
-            void killDependency();
+            void removeFromChain();
 
 
 
             /*****************************************************//**
-            * This function is used for enableing Task when disabled.
+            * This function is used for enabling Task when disabled.
             *
-            * @see assing()
+            * @see subscribe()
             *
             ***********************************************************/
             void enable();
 
             /*****************************************************//**
-            * Fuction is used to set dependecies/tasks that will be executed
+            * Function is used to set dependencies/tasks that will be executed
             *  by this Task before executing this task,
             *  its meant to preserve context of execution.
             *
@@ -102,16 +105,16 @@ namespace TSWorker{
             * This function will add this to pending addition list
             *  and will be added when 'MasterTask' routine will add it to task queue.
             *
-            * @param taskPriority - Task priority to which will Task be assign.
+            * @param taskPriority - Task priority to which will Task be subscribe.
             *
             * @note Can be used when removed by remove() function,
-            *  or when auto-assign is disabled by global variable.
+            *  or when auto-subscribe is disabled by global variable.
             *
             * @see enable()
             * @see remove()
             *
             ***********************************************************/
-            void assign(const TaskPriority taskPriority);
+            void subscribe(const TaskPriority taskPriority);
 
             /*****************************************************//**
             * This function will add task to remove list
@@ -120,6 +123,7 @@ namespace TSWorker{
             * @note This function will not remove from task queue,
             *  it will just gets ignored (this could result in performance difference).
             *
+            * @see subscribe()
             * @see disable()
             * @see removeAndDelete()
             *
@@ -143,7 +147,7 @@ namespace TSWorker{
             *
             * @return - true when task is enabled otherwise returns false.
             *
-            * @note This function will not check if Task is assigned
+            * @note This function will not check if Task is subscribed
             *  (or if it was removed)
             *
             * @see enable()
@@ -163,10 +167,10 @@ namespace TSWorker{
         protected:
             /*****************************************************//**
             * This function be used to handle Task and
-            *  it's pure virtual by defualt.
+            *  it's pure virtual by default.
             *
-            * @note You must provide you own implemetation in inhereted class.
-            * @note This functions should be only executed by _execute() fucntion
+            * @note You must provide you own implementation in inherited class.
+            * @note This functions should be only executed by _execute() function
             *
             * @see _execute()
             *
@@ -194,8 +198,9 @@ namespace TSWorker{
             ***********************************************************/
             bool _execute();
 
-            std::mutex                  _taskMutex;                 ///< esures that task is only executed on one thread at the time
+            std::mutex                  _taskMutex;                 ///< ensures that task is only executed on one thread at the time
             Task*                       _dependentTask;
+            std::thread::id             _bindedThread;
             ///std::chrono::steady_clock::time_point timeOfStart;
             std::atomic<TaskRemoveMode> _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
             std::atomic<bool>           _isUsedByThread;            ///< is used to detect if Task is already executed by functions
@@ -211,9 +216,9 @@ namespace TSWorker{
 
 
     /*****************************************************//**
-    * This function will execute all Tasks with all priorites.
+    * This function will execute all Tasks with all priorities.
     *
-    * @return true when process is running oterwise false.
+    * @return true when process is running otherwise false.
     *
     * @note Tasks will be executed by reverse order(because push_back will add functions at end of vector)
     *
