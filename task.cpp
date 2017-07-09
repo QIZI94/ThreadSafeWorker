@@ -30,17 +30,28 @@
 
 
 
-
 namespace TSWorker{
-    std::thread::id __TF_DefaultDhreadID;
+
 
     std::atomic<bool> quitTaskHandling(false);
+
+
+    /**High priority handlers**/
+    std::vector<Task*> highPriorityTaskQueue;
+    std::vector<Task*> highPriorityTaskToAdd;
+    std::vector<Task*> highPriorityTaskToRemove;
+    std::atomic<bool> highPrioCleaning(false);
+    unsigned int highPrioMinTaskTime = 1000;
+    std::mutex highPrioAddMutex;
+    std::mutex highPrioRemoveMutex;
+
 
     /**Low priority handlers**/
     std::vector<Task*> lowPriorityTaskQueue;
     std::vector<Task*> lowPriorityTaskToAdd;
     std::vector<Task*> lowPriorityTaskToRemove;
     std::atomic<bool> lowPrioCleaning(false);
+    unsigned int lowPrioMinTaskTime = 1000;
     std::mutex lowPrioAddMutex;
     std::mutex lowPrioRemoveMutex;
 
@@ -49,23 +60,46 @@ namespace TSWorker{
     /** Task functions implemetation **/
     Task::Task(){
 
-        _dependentTask = nullptr;
-        _taskRemoveMode = REMOVE_MODE;
-        _bindedThread = __TF_DefaultDhreadID;
-    }
-
-
-    void Task::bindToThread(std::thread::id threadID){
-        _bindedThread = threadID;
-    }
-    void Task::unbind(){
-        _bindedThread = __TF_DefaultDhreadID;
-    }
-
-
-    void Task::removeFromChain(){
+        _dependentTask          = nullptr;
+        _isExecutedByDependency = false;
+        _isEnabled              = true;
+        _taskRemoveMode         = REMOVE_MODE;
 
     }
+
+    void Task::removeDependency(const Task* dependency){
+
+        Task* currentTask = this;
+
+        while(currentTask->_dependentTask != nullptr){
+
+            if(currentTask->_dependentTask == dependency){
+                currentTask->_dependentTask->_isExecutedByDependency = false;
+                currentTask->_dependentTask = currentTask->_dependentTask->_dependentTask;
+                break;
+
+            }
+
+
+            currentTask = currentTask->_dependentTask;
+        }
+
+    }
+    void Task::breakDependency(){
+
+        Task* previus = this;
+        Task* current = previus->_dependentTask;
+        while(current != nullptr){
+            previus->_dependentTask = nullptr;
+            current->_isExecutedByDependency = false;
+
+            previus = current;
+            current = previus->_dependentTask;
+
+        }
+
+    }
+
 
 
     void Task::enable(){
@@ -120,6 +154,7 @@ namespace TSWorker{
 
             }
         }
+        _isExecutedByDependency = false;
 
 
     }
@@ -140,18 +175,51 @@ namespace TSWorker{
 
     }
 
+    void Task::executeAgain(){
+        _isAlreadyExecuted = false;
+    }
+
+
     bool Task::isEnabled() const{
         return _isEnabled;
     }
 
+    bool Task::isSubscribed() const{
+        return (_taskRemoveMode == NOACTION_MODE);
+    }
+
+    Task* Task::getDependentTask() const{
+        return _dependentTask;
+    }
+
+
     Task::~Task()
     {
         if(_taskRemoveMode != DELETE_MODE){/// if true master task will handle deletion from main task queue
+            remove(); /// attempt to prevent segmentation falut, if cleaning process happens to be fast and remove this task from execution queue.
             std::cerr<<"Warning: deletion of task detected outside of master task\n.";
         }
     }
 
+    bool Task::_recursiveDependencyExecute(Task* task){
 
+        if(task->_dependentTask != nullptr){
+
+            if(task->_dependentTask->_isExecutedByDependency == false){
+                    task->_dependentTask = nullptr;
+            }
+            else {
+
+                _recursiveDependencyExecute(task->_dependentTask);
+
+            }
+        }
+
+        if(task->_isEnabled){
+            task->run();
+        }
+
+    }
 
 
 
@@ -165,23 +233,54 @@ namespace TSWorker{
                 return false;
             }
 
-            _isUsedByThread = true;
-            _isAlreadyExecuted = true;
-          //  timeOfStart = std::chrono::steady_clock::now();
-            if(_dependentTask != nullptr){//disabled for now
-                if(_dependentTask->_isExecutedByDependency == false){
-                    _dependentTask = nullptr;
+            _isUsedByThread     = true;
+            _isAlreadyExecuted  = true;
+            _timeOfStart        = std::chrono::steady_clock::now();
+
+            /*Task* previousTask = this;
+            Task* currentTask  = this->_dependentTask;
+            while(currentTask != nullptr){
+                if(currentTask->_isExecutedByDependency == false){
+                    previousTask->_dependentTask = nullptr;
 
                 }
+
                 else{
 
-                    _dependentTask->run();
+                    currentTask->run();
+                    previousTask = currentTask;
+                    currentTask  = currentTask->_dependentTask;
+                }
+
+            }*/
+
+
+
+           /* Task* currentTask  = this;
+            while(currentTask->_dependentTask != nullptr){
+                if(currentTask->_dependentTask->_isExecutedByDependency == false){
+
+                    currentTask->_dependentTask = nullptr;
+                }
+
+                else{
+
+                    currentTask->_dependentTask->run();
+                    currentTask  = currentTask->_dependentTask;
+                }
+            }*/
+            if(this->_dependentTask != nullptr){
+                if(this->_dependentTask->_isExecutedByDependency == false){
+
+                    this->_dependentTask = nullptr;
+                }
+                else {
+                    _recursiveDependencyExecute(this->_dependentTask);
                 }
             }
 
-
             run();
-            _isUsedByThread = false;
+            _isUsedByThread     = false;
 
 
 
@@ -190,20 +289,44 @@ namespace TSWorker{
         return false;
     }
 
-
-
+    void setHighPriorityTaskTimeOut(unsigned int minTaskTime){ lowPrioMinTaskTime = minTaskTime;}
+    void setLowPriorityTaskTimeOut(unsigned int minTaskTime){ lowPrioMinTaskTime = minTaskTime;}
 
 
     bool taskHandler(){
-        for(uint32_t taskIndex = lowPriorityTaskQueue.size(); lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; taskIndex--){
+        for(uint32_t taskIndex = lowPriorityTaskQueue.size(); lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
             if(lowPriorityTaskQueue[taskIndex-1]->_execute() == true){
                 break;
             }
 
         }
 
+/*
+        static thread_local uint32_t lowPrioTaskIndex = lowPriorityTaskQueue.size();
+        while(quitTaskHandling == false){
+
+            if(lowPrioCleaning == true){
+                lowPrioTaskIndex = lowPriorityTaskQueue.size();;
+                break;
+            }
+
+            if(lowPrioTaskIndex == 0){
+                lowPrioTaskIndex = lowPriorityTaskQueue.size();
+            }
+
+            if(lowPriorityTaskQueue[lowPrioTaskIndex-1]->_execute() == true){
+                break;
+            }
+
+            --lowPrioTaskIndex;
+
+
+        }*/
+
+
         return !quitTaskHandling;
     }
+
 
 
 
@@ -230,12 +353,21 @@ namespace TSWorker{
                 quitTaskHandling = true;
             }
         private:
+
+            static bool taskTimeout(const Task* task){
+                if(lowPrioMinTaskTime == 0){
+                    return true;
+                }
+                return (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - task->_timeOfStart).count() < lowPrioMinTaskTime);
+            }
+
+
             void run(){
 
-                for(uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); taskIndex++){
+                for(uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex){
                     Task* currentTask = lowPriorityTaskQueue[taskIndex];
-                    if(currentTask != this &&  (true) && (currentTask->_isAlreadyExecuted == false || currentTask->_isUsedByThread == true)){
-                        _isAlreadyExecuted = false;
+                    if((currentTask != this) &&  (taskTimeout(currentTask)) && (currentTask->_isAlreadyExecuted == false || currentTask->_isUsedByThread == true)){
+                        executeAgain();
 
                         return;
                     }
@@ -249,10 +381,14 @@ namespace TSWorker{
 
 
                 if(lowPrioRemoveMutex.try_lock()){
-                    for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); taskIndex++ ){
+                    for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex ){
+
                         Task* currentTask = lowPriorityTaskQueue[taskIndex];
+
                         if(currentTask->_taskRemoveMode == NOACTION_MODE){
-                            currentTask->_isAlreadyExecuted = false;
+                            if(currentTask->_isUsedByThread == false || currentTask == this){
+                                currentTask->_isAlreadyExecuted = false;
+                            }
                         }
                         else{
                             lowPriorityTaskQueue.erase(lowPriorityTaskQueue.begin()+taskIndex);
@@ -270,7 +406,7 @@ namespace TSWorker{
 
                 if(lowPrioAddMutex.try_lock()){
                     std::cout<<"Added: ("<<(unsigned int)lowPriorityTaskToAdd.size()<<")\n";
-                    for ( uint32_t taskAddIndex = 0; taskAddIndex < lowPriorityTaskToAdd.size(); taskAddIndex++ ){
+                    for ( uint32_t taskAddIndex = 0; taskAddIndex < lowPriorityTaskToAdd.size(); ++taskAddIndex ){
 
                         lowPriorityTaskQueue.push_back(lowPriorityTaskToAdd[taskAddIndex]);
                     }

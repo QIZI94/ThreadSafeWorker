@@ -1,4 +1,4 @@
-/******************************  <Zlib>  **************************************
+ /******************************  <Zlib>  *************************************
  * Copyright (c) 2017 Martin Baláž (QIZI94)
  *
  * This software is provided 'as-is', without any express or implied
@@ -24,7 +24,7 @@
 #include <atomic>
 #include <ctime>
 #include <mutex>
-#include <thread>
+#include <iostream>
 
 namespace TSWorker{
 
@@ -35,46 +35,108 @@ namespace TSWorker{
         friend class LowPriotityMasterTask;
 
         public:
-            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1};
+            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class priority enumeration
 
+            /*****************************************************//**
+            * This is default constructor.
+            *
+            * @see ~Task()
+            *
+            ***********************************************************/
             Task();
 
 
-            void bindToThread(std::thread::id threadID = std::this_thread::get_id());
-            void unbind();
-
-
             /*****************************************************//**
-            * Function is used to set dependencies/tasks that will be executed
+            * Function is used to add dependencies/tasks that will be executed
             *  by this Task before executing this task,
             *  its meant to preserve context of execution.
             *
-            * @param dependencies - an adaptive parameter that can take any number of parameters
-            *  to the left
+            * @param dependencies - an variadic parameter that takes pointers to Tasks.
             *
-            * @note This function only takes pointers to Task (Task*).
+            *
+            * @note Dependency will be build in same order as function's parameters.
+            *
+            * @note When this Task already has some dependency build,
+            *  new dependecies will instert itself right after this Task and befor old dependencies
+            *
+            *
+            * @see removeDependency()
+            * @see breakDependency()
             *
             ***********************************************************/
             template<typename ...Dependency>
-            void setDependency(Dependency... dependecies){
+            void addDependency(Dependency... dependecies){/// make me addDependency and rewrite doxygen
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
+
+                bool isSomethingNewAdded = false;
                 Task* currentTask = this;
+                Task* originalDependentTask = this->_dependentTask;
+
+
+                for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); ++taskDependencyIndex){
+                    if(deps[taskDependencyIndex]->_isExecutedByDependency == false && this != deps[taskDependencyIndex]){
+                        currentTask->_dependentTask                             = deps[taskDependencyIndex];
+                        currentTask->_dependentTask->remove();
+                        currentTask->_dependentTask->_isExecutedByDependency    = true;
+                        currentTask->_dependentTask->_isAlreadyExecuted         = true;
+                        isSomethingNewAdded = true;
+                        currentTask                                             = currentTask->_dependentTask;
+                    }
+                }
+                if(isSomethingNewAdded == true){
+                    while(currentTask->_dependentTask != nullptr){
+                        currentTask = currentTask->_dependentTask;
+                    }
+                    currentTask->_dependentTask = originalDependentTask;
+                }
+
+                /*
                 for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); taskDependencyIndex++){
                     if(deps[taskDependencyIndex]->_isExecutedByDependency == false){
-                        currentTask->_dependentTask = deps[taskDependencyIndex];
-                        currentTask->_dependentTask->_isExecutedByDependency = true;
-                        currentTask->_dependentTask->_isAlreadyExecuted      = true;
+
+                        currentTask->_dependentTask                             = deps[taskDependencyIndex];
+                        currentTask->_dependentTask->_isExecutedByDependency    = true;
+                        currentTask->_dependentTask->_isAlreadyExecuted         = true;
 
                         currentTask->_dependentTask->remove();
                         currentTask = currentTask->_dependentTask;
                     }
-                }
+                }*/
         //upcomming implementation
             }
 
+            /*****************************************************//**
+            * Function takes pointer to Task which will be compared to this Task's
+            *  dependencies and if match is found remove it form chain of dependencies
+            *
+            *
+            * @param dependency - an pointer to Task
+            *
+            *
+            *
+            * @note When this specific Task is removed,
+            *
+            * @see removeDependency()
+            * @see breakDependency()
+            *
+            ***********************************************************/
+            void removeDependency(const Task* dependency);
 
-            void removeFromChain();
+
+            /*****************************************************//**
+            * Remove all tasks dependecies breaking the whole chain,
+            *  becouse it will also remove dependencies between dependecy tasks.
+            *
+            *
+            * @note This is useful when rebuilding the dependency chain.
+            *
+            *
+            * @see removeDependency()
+            * @see breakDependency()
+            *
+            ***********************************************************/
+            void breakDependency();
 
 
 
@@ -116,7 +178,7 @@ namespace TSWorker{
             ***********************************************************/
             void subscribe(const TaskPriority taskPriority);
 
-            /*****************************************************//**
+            /*****************************************************//***
             * This function will add task to remove list
             *  and will be will be removed when 'MasterTask' routine will add it task queue.
             *
@@ -130,9 +192,9 @@ namespace TSWorker{
             ***********************************************************/
             void remove();
 
-            /*****************************************************//**
+            /*****************************************************//***
             * This function will use remove() function but also trigger
-            * deletion of Task's memory in 'MasterTask' routine.
+            *  deletion of Task's memory in 'MasterTask' routine.
             *
             *
             * @see remove()
@@ -143,7 +205,7 @@ namespace TSWorker{
 
             /*****************************************************//**
             * This function will check if Task is enabled
-            * deletion of Task's memory in 'MasterTask' routine.
+            *  deletion of Task's memory in 'MasterTask' routine.
             *
             * @return - true when task is enabled otherwise returns false.
             *
@@ -155,6 +217,13 @@ namespace TSWorker{
             *
             ***********************************************************/
             bool isEnabled() const;
+
+            bool isExecuted() const;
+
+
+            bool isSubscribed() const;
+
+            Task* getDependentTask() const;
 
             /*****************************************************//**
             * Default virtual destructor
@@ -178,6 +247,15 @@ namespace TSWorker{
             virtual void  run() = 0;
 
 
+            /*****************************************************//**
+            * This function will mark task as not execute as
+            *  if it was first time it is execution in current round.
+            *
+            * @warning Executing this every time inside the run() or other loop will result in task
+            * to be never done so it will block the cleaning, be careful when using it.
+            *
+            ***********************************************************/
+            void executeAgain();
 
         private:
 
@@ -196,22 +274,52 @@ namespace TSWorker{
             * @see run()
             *
             ***********************************************************/
+            bool _recursiveDependencyExecute(Task* task);
             bool _execute();
 
-            std::mutex                  _taskMutex;                 ///< ensures that task is only executed on one thread at the time
-            Task*                       _dependentTask;
-            std::thread::id             _bindedThread;
-            ///std::chrono::steady_clock::time_point timeOfStart;
-            std::atomic<TaskRemoveMode> _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
-            std::atomic<bool>           _isUsedByThread;            ///< is used to detect if Task is already executed by functions
-            std::atomic<bool>           _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
-            std::atomic<bool>           _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
-            std::atomic<bool>           _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
-            TaskPriority                _taskPriority;              ///< is used to check if Task is high priority
+
+            std::mutex                              _taskMutex;                 ///< ensures that task is only executed on one thread at the time
+            Task*                                   _dependentTask;
+            std::chrono::steady_clock::time_point   _timeOfStart;
+            std::atomic<TaskRemoveMode>             _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
+            std::atomic<bool>                       _isUsedByThread;            ///< is used to detect if Task is already executed by functions
+            std::atomic<bool>                       _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
+            std::atomic<bool>                       _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
+            std::atomic<bool>                       _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
+            TaskPriority                            _taskPriority;              ///< is used to check if Task is high priority
 
     };
 
 
+    /*****************************************************//**
+    * This function will set minimal time that high priority cleaning procedure
+    *  will wait until task it will be ignored, so the cleaning proccess can start a new round.
+    *
+    * @note When setting it to '0' there will no ignoring so when one task will longer than
+    *  other tasks to complete whole round cleaning will wait endlessly for task to complete.
+    *  (this can be testd by putting while(true); in run function of subscribed task)
+    *
+    * @see setHighPriorityTaskTimeOut()
+    * @see Task
+    *
+    ***********************************************************/
+    void setHighPriorityTaskTimeOut(unsigned int minTaskTime);
+
+
+
+    /*****************************************************//**
+    * This function will set minimal time that low priority cleaning procedure
+    *  will wait until task it will be ignored, so the cleaning proccess can start a new round.
+    *
+    * @note When setting it to '0' there will no ignoring so when one task will longer than
+    *  other tasks to complete whole round cleaning will wait endlessly for task to complete.
+    *  (this can be testd by putting while(true); in run function of subscribed task)
+    *
+    * @see setHighPriorityTaskTimeOut()
+    * @see Task
+    *
+    ***********************************************************/
+    void setLowPriorityTaskTimeOut(unsigned int minTaskTime);
 
 
 
@@ -226,6 +334,6 @@ namespace TSWorker{
     *
     ***********************************************************/
     bool taskHandler();
-} // Scheduler
+}
 
 #endif // TASK_H

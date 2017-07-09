@@ -11,7 +11,7 @@ struct test1 : TSWorker::Task{
     }
     private:
     void run(){
-        std::cout<<"I am here, thread: "<<'\n';
+        std::cout<<"I am here, thread: "<<" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
       //  testVar++;
         //getchar();
        // std::cout<<"Time = "<<timeOfStart<<'\n';
@@ -20,7 +20,6 @@ struct test1 : TSWorker::Task{
 };
 
 
-#include <atomic>
 struct test2 : TSWorker::Task{
 
     test2() {
@@ -31,7 +30,7 @@ struct test2 : TSWorker::Task{
     volatile unsigned char c = 0;
     void run(){
 
-        std::cout<<"And also am I /************************... address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
+        std::cout<<"And also am I /************************... "<<" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
 
         //getchar();
         //remove();
@@ -57,26 +56,69 @@ struct test2 : TSWorker::Task{
 };
 
 
-struct taskA : public TSWorker::Task{
+struct task0 : public TSWorker::Task{
 
     void run(){
        // subscribe(TSWorker::Task::LOW_PRIO);
-        std::cout<<"This si ###pretask###\n";
+        std::cout<<"This si ###historytask###\n";
+
     }
 
-} ta;
+} t0;
 
-struct taskB : public TSWorker::Task{
-    taskB(){
-        subscribe(TSWorker::Task::LOW_PRIO);
-        setDependency(&ta);
+struct taskA : public TSWorker::Task{
+    taskA(){
+        addDependency(&t0);
 
     }
     void run(){
-        std::cout<<"This si ###posttask###\n";
+        //subscribe(TSWorker::Task::LOW_PRIO);
+        std::cout<<"This si ###pretask###\n";
+
+
+    }
+
+} ta;
+struct taskB : public TSWorker::Task{
+    taskB(){
+
+
+    }
+    void run(){
+        std::cout<<"This si ###midtask###\n";
+
+
+       // killDependency();
+        //while(1);
+
     }
 
 } tb ;
+
+
+struct taskC : public TSWorker::Task{
+    bool depAdded = false;
+    taskC(){
+        subscribe(TSWorker::Task::LOW_PRIO);
+        addDependency(&tb);
+        //addDependency(&tb,&ta, &t0);
+
+    }
+    void run(){
+        if(depAdded == false){
+            addDependency(&t0, &ta);
+            depAdded = true;
+        }
+        else{
+            breakDependency();
+
+        }
+        std::cout<<"This si ###posttask###"<<'\n';//" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
+
+       // killDependency();
+    }
+
+} tc ;
 
 
 void threadFunction(){
@@ -92,6 +134,8 @@ int main(){
 
 
     test1 t1;
+
+    TSWorker::setLowPriorityTaskTimeOut(0);
    // t1.subscribe(TSWorker::Task::LOW_PRIO);
  //   TSWorker::Task* ts = new test2;
 
@@ -119,7 +163,7 @@ int main(){
 
 
     for(;;){
-        if(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timeOfStart).count() > 1000){
+        if(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timeOfStart).count() > 10000){
            new test2;
            new test2;
            new test2;
