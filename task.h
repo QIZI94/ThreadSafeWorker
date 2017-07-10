@@ -79,7 +79,6 @@ namespace TSWorker{
                         currentTask->_dependentTask                             = deps[taskDependencyIndex];
                         currentTask->_dependentTask->remove();
                         currentTask->_dependentTask->_isExecutedByDependency    = true;
-                        currentTask->_dependentTask->_isAlreadyExecuted         = true;
                         isSomethingNewAdded = true;
                         currentTask                                             = currentTask->_dependentTask;
                     }
@@ -91,19 +90,6 @@ namespace TSWorker{
                     currentTask->_dependentTask = originalDependentTask;
                 }
 
-                /*
-                for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); taskDependencyIndex++){
-                    if(deps[taskDependencyIndex]->_isExecutedByDependency == false){
-
-                        currentTask->_dependentTask                             = deps[taskDependencyIndex];
-                        currentTask->_dependentTask->_isExecutedByDependency    = true;
-                        currentTask->_dependentTask->_isAlreadyExecuted         = true;
-
-                        currentTask->_dependentTask->remove();
-                        currentTask = currentTask->_dependentTask;
-                    }
-                }*/
-        //upcomming implementation
             }
 
             /*****************************************************//**

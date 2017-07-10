@@ -122,7 +122,9 @@ namespace TSWorker{
 
 
             if(taskPriority == HIGH_PRIO){
-
+                highPrioAddMutex.lock();
+                highPriorityTaskToAdd.push_back(this);
+                highPrioAddMutex.unlock();
             }
             else {
 
@@ -142,18 +144,19 @@ namespace TSWorker{
     void Task::remove(){
 
         if(_taskRemoveMode == NOACTION_MODE){
-
             if(_taskPriority == HIGH_PRIO){
-                //to be implemented
+                highPrioRemoveMutex.lock();
+                _taskRemoveMode = REMOVE_MODE;
+                highPrioRemoveMutex.unlock();
             }
             else{
-
                 lowPrioRemoveMutex.lock();
                 _taskRemoveMode = REMOVE_MODE;
                 lowPrioRemoveMutex.unlock();
-
             }
+
         }
+        _isAlreadyExecuted      = true;
         _isExecutedByDependency = false;
 
 
@@ -162,7 +165,9 @@ namespace TSWorker{
     void Task::removeAndDelete(){
         if(_taskRemoveMode == NOACTION_MODE){
             if(_taskPriority == HIGH_PRIO){
-                //to be implemented
+                highPrioRemoveMutex.lock();
+                _taskRemoveMode = DELETE_MODE;
+                highPrioRemoveMutex.unlock();
             }
             else{
 
@@ -237,38 +242,7 @@ namespace TSWorker{
             _isAlreadyExecuted  = true;
             _timeOfStart        = std::chrono::steady_clock::now();
 
-            /*Task* previousTask = this;
-            Task* currentTask  = this->_dependentTask;
-            while(currentTask != nullptr){
-                if(currentTask->_isExecutedByDependency == false){
-                    previousTask->_dependentTask = nullptr;
 
-                }
-
-                else{
-
-                    currentTask->run();
-                    previousTask = currentTask;
-                    currentTask  = currentTask->_dependentTask;
-                }
-
-            }*/
-
-
-
-           /* Task* currentTask  = this;
-            while(currentTask->_dependentTask != nullptr){
-                if(currentTask->_dependentTask->_isExecutedByDependency == false){
-
-                    currentTask->_dependentTask = nullptr;
-                }
-
-                else{
-
-                    currentTask->_dependentTask->run();
-                    currentTask  = currentTask->_dependentTask;
-                }
-            }*/
             if(this->_dependentTask != nullptr){
                 if(this->_dependentTask->_isExecutedByDependency == false){
 
@@ -280,9 +254,8 @@ namespace TSWorker{
             }
 
             run();
+
             _isUsedByThread     = false;
-
-
 
             return true;
         }
@@ -294,6 +267,12 @@ namespace TSWorker{
 
 
     bool taskHandler(){
+        for(uint32_t taskIndex = highPriorityTaskQueue.size(); highPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
+            (void)highPriorityTaskQueue[taskIndex-1]->_execute();
+
+
+        }
+
         for(uint32_t taskIndex = lowPriorityTaskQueue.size(); lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
             if(lowPriorityTaskQueue[taskIndex-1]->_execute() == true){
                 break;
@@ -301,35 +280,98 @@ namespace TSWorker{
 
         }
 
-/*
-        static thread_local uint32_t lowPrioTaskIndex = lowPriorityTaskQueue.size();
-        while(quitTaskHandling == false){
-
-            if(lowPrioCleaning == true){
-                lowPrioTaskIndex = lowPriorityTaskQueue.size();;
-                break;
-            }
-
-            if(lowPrioTaskIndex == 0){
-                lowPrioTaskIndex = lowPriorityTaskQueue.size();
-            }
-
-            if(lowPriorityTaskQueue[lowPrioTaskIndex-1]->_execute() == true){
-                break;
-            }
-
-            --lowPrioTaskIndex;
-
-
-        }*/
-
-
         return !quitTaskHandling;
     }
 
 
 
 
+     /**High priority master task**/
+
+
+    class HighPriotityMasterTask : public Task{
+        public:
+            HighPriotityMasterTask() {
+                _taskPriority = HIGH_PRIO;
+                _isUsedByThread = false;
+                _isAlreadyExecuted = false;
+                _isEnabled  = true;
+                _taskRemoveMode = NOACTION_MODE;
+                highPriorityTaskQueue.push_back(this);
+
+            }
+            ~HighPriotityMasterTask(){
+                quitTaskHandling = true;
+            }
+        private:
+
+            static bool taskTimeout(const Task* task){
+                if(highPrioMinTaskTime == 0){
+                    return true;
+                }
+                return (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - task->_timeOfStart).count() < highPrioMinTaskTime);
+            }
+
+
+            void run(){
+
+                for(uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex){
+                    Task* currentTask = highPriorityTaskQueue[taskIndex];
+                    if((currentTask != this) &&  (taskTimeout(currentTask)) && (currentTask->_isAlreadyExecuted == false || currentTask->_isUsedByThread == true)){
+                        executeAgain();
+
+                        return;
+                    }
+
+                }
+
+
+                std::cout<<"Cleaning High prio\n";
+
+                highPrioCleaning = true;
+
+
+                if(highPrioRemoveMutex.try_lock()){
+                    for ( uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex ){
+
+                        Task* currentTask = highPriorityTaskQueue[taskIndex];
+
+                        if(currentTask->_taskRemoveMode == NOACTION_MODE){
+                            if(currentTask->_isUsedByThread == false || currentTask == this){
+                                currentTask->_isAlreadyExecuted = false;
+                            }
+                        }
+                        else{
+                            highPriorityTaskQueue.erase(highPriorityTaskQueue.begin()+taskIndex);
+                            if(currentTask->_taskRemoveMode == DELETE_MODE){
+                                delete currentTask;
+                            }
+                            taskIndex--;
+                        }
+
+                    }
+                    highPrioRemoveMutex.unlock();
+
+                }
+
+
+                if(highPrioAddMutex.try_lock()){
+                    std::cout<<"Added High: ("<<(unsigned int)highPriorityTaskToAdd.size()<<")\n";
+                    for ( uint32_t taskAddIndex = 0; taskAddIndex < highPriorityTaskToAdd.size(); ++taskAddIndex ){
+
+                        highPriorityTaskQueue.push_back(highPriorityTaskToAdd[taskAddIndex]);
+                    }
+                    highPriorityTaskToAdd.clear();
+
+                    highPrioAddMutex.unlock();
+                }
+
+                highPrioCleaning = false;
+
+            }
+
+
+    } _highPrioMasterTask;
 
 
 

@@ -7,7 +7,7 @@
 struct test1 : TSWorker::Task{
 
     test1() {
-        subscribe(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::HIGH_PRIO);
     }
     private:
     void run(){
@@ -23,7 +23,7 @@ struct test1 : TSWorker::Task{
 struct test2 : TSWorker::Task{
 
     test2() {
-        subscribe(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::HIGH_PRIO);
 
     }
     private:
@@ -59,7 +59,7 @@ struct test2 : TSWorker::Task{
 struct task0 : public TSWorker::Task{
 
     void run(){
-       // subscribe(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::LOW_PRIO);
         std::cout<<"This si ###historytask###\n";
 
     }
@@ -68,7 +68,8 @@ struct task0 : public TSWorker::Task{
 
 struct taskA : public TSWorker::Task{
     taskA(){
-        addDependency(&t0);
+
+        //addDependency(&t0);
 
     }
     void run(){
@@ -81,7 +82,7 @@ struct taskA : public TSWorker::Task{
 } ta;
 struct taskB : public TSWorker::Task{
     taskB(){
-
+        subscribe(TSWorker::Task::HIGH_PRIO);
 
     }
     void run(){
@@ -100,17 +101,17 @@ struct taskC : public TSWorker::Task{
     bool depAdded = false;
     taskC(){
         subscribe(TSWorker::Task::LOW_PRIO);
-        addDependency(&tb);
+        //addDependency(&tb);
         //addDependency(&tb,&ta, &t0);
 
     }
     void run(){
         if(depAdded == false){
-            addDependency(&t0, &ta);
+           // addDependency(&t0, &ta);
             depAdded = true;
         }
         else{
-            breakDependency();
+           // breakDependency();
 
         }
         std::cout<<"This si ###posttask###"<<'\n';//" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
@@ -136,6 +137,7 @@ int main(){
     test1 t1;
 
     TSWorker::setLowPriorityTaskTimeOut(0);
+    TSWorker::setHighPriorityTaskTimeOut(0);
    // t1.subscribe(TSWorker::Task::LOW_PRIO);
  //   TSWorker::Task* ts = new test2;
 
