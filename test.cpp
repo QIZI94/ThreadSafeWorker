@@ -59,7 +59,7 @@ struct test2 : TSWorker::Task{
 struct task0 : public TSWorker::Task{
 
     void run(){
-        subscribe(TSWorker::Task::LOW_PRIO);
+      //  subscribe(TSWorker::Task::LOW_PRIO);
         std::cout<<"This si ###historytask###\n";
 
     }
@@ -82,7 +82,7 @@ struct taskA : public TSWorker::Task{
 } ta;
 struct taskB : public TSWorker::Task{
     taskB(){
-        subscribe(TSWorker::Task::HIGH_PRIO);
+        subscribe(TSWorker::Task::LOW_PRIO);
 
     }
     void run(){
@@ -102,7 +102,7 @@ struct taskC : public TSWorker::Task{
     taskC(){
         subscribe(TSWorker::Task::LOW_PRIO);
         //addDependency(&tb);
-        //addDependency(&tb,&ta, &t0);
+        addDependency(&ta);
 
     }
     void run(){
@@ -114,7 +114,7 @@ struct taskC : public TSWorker::Task{
            // breakDependency();
 
         }
-        std::cout<<"This si ###posttask###"<<'\n';//" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
+        std::cout<<"This si ###posttask###"<<" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
 
        // killDependency();
     }
@@ -141,7 +141,7 @@ int main(){
    // t1.subscribe(TSWorker::Task::LOW_PRIO);
  //   TSWorker::Task* ts = new test2;
 
-   /* ts->subscribe(TSWorker::Task::LOW_PRIO);*/
+    //ts->subscribe(TSWorker::Task::LOW_PRIO);*/
     //new test2;
     std::thread th1(threadFunction);
     std::thread th2(threadFunction);

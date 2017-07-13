@@ -145,14 +145,14 @@ namespace TSWorker{
 
         if(_taskRemoveMode == NOACTION_MODE){
             if(_taskPriority == HIGH_PRIO){
-                highPrioRemoveMutex.lock();
+                //highPrioRemoveMutex.lock();
                 _taskRemoveMode = REMOVE_MODE;
-                highPrioRemoveMutex.unlock();
+                //highPrioRemoveMutex.unlock();
             }
             else{
-                lowPrioRemoveMutex.lock();
+                //lowPrioRemoveMutex.lock();
                 _taskRemoveMode = REMOVE_MODE;
-                lowPrioRemoveMutex.unlock();
+                //lowPrioRemoveMutex.unlock();
             }
 
         }
@@ -165,15 +165,15 @@ namespace TSWorker{
     void Task::removeAndDelete(){
         if(_taskRemoveMode == NOACTION_MODE){
             if(_taskPriority == HIGH_PRIO){
-                highPrioRemoveMutex.lock();
+                //highPrioRemoveMutex.lock();
                 _taskRemoveMode = DELETE_MODE;
-                highPrioRemoveMutex.unlock();
+                //highPrioRemoveMutex.unlock();
             }
             else{
 
-                lowPrioRemoveMutex.lock();
+                //lowPrioRemoveMutex.lock();
                 _taskRemoveMode = DELETE_MODE;
-                lowPrioRemoveMutex.unlock();
+                //lowPrioRemoveMutex.unlock();
 
             }
         }
@@ -233,7 +233,7 @@ namespace TSWorker{
 
         if(uniqueTaskMutex.try_lock()){
             /// reasons not to execute
-            if(_taskRemoveMode != Task::NOACTION_MODE || lowPrioCleaning || _isUsedByThread ||  _isAlreadyExecuted || !_isEnabled || _isExecutedByDependency){
+            if(_taskRemoveMode != Task::NOACTION_MODE || ( _taskPriority == HIGH_PRIO ? highPrioCleaning : lowPrioCleaning) || _isUsedByThread ||  _isAlreadyExecuted || !_isEnabled || _isExecutedByDependency){
 
                 return false;
             }
@@ -266,22 +266,6 @@ namespace TSWorker{
     void setLowPriorityTaskTimeOut(unsigned int minTaskTime){ lowPrioMinTaskTime = minTaskTime;}
 
 
-    bool taskHandler(){
-        for(uint32_t taskIndex = highPriorityTaskQueue.size(); highPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
-            (void)highPriorityTaskQueue[taskIndex-1]->_execute();
-
-
-        }
-
-        for(uint32_t taskIndex = lowPriorityTaskQueue.size(); lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
-            if(lowPriorityTaskQueue[taskIndex-1]->_execute() == true){
-                break;
-            }
-
-        }
-
-        return !quitTaskHandling;
-    }
 
 
 
@@ -331,7 +315,7 @@ namespace TSWorker{
                 highPrioCleaning = true;
 
 
-                if(highPrioRemoveMutex.try_lock()){
+
                     for ( uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex ){
 
                         Task* currentTask = highPriorityTaskQueue[taskIndex];
@@ -350,9 +334,9 @@ namespace TSWorker{
                         }
 
                     }
-                    highPrioRemoveMutex.unlock();
 
-                }
+
+
 
 
                 if(highPrioAddMutex.try_lock()){
@@ -422,28 +406,26 @@ namespace TSWorker{
                 lowPrioCleaning = true;
 
 
-                if(lowPrioRemoveMutex.try_lock()){
-                    for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex ){
+                //if(lowPrioRemoveMutex.try_lock()){
+                for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex ){
 
-                        Task* currentTask = lowPriorityTaskQueue[taskIndex];
+                    Task* currentTask = lowPriorityTaskQueue[taskIndex];
 
-                        if(currentTask->_taskRemoveMode == NOACTION_MODE){
-                            if(currentTask->_isUsedByThread == false || currentTask == this){
-                                currentTask->_isAlreadyExecuted = false;
-                            }
+                    if(currentTask->_taskRemoveMode == NOACTION_MODE){
+                        if(currentTask->_isUsedByThread == false || currentTask == this){
+                            currentTask->_isAlreadyExecuted = false;
                         }
-                        else{
-                            lowPriorityTaskQueue.erase(lowPriorityTaskQueue.begin()+taskIndex);
-                            if(currentTask->_taskRemoveMode == DELETE_MODE){
-                                delete currentTask;
-                            }
-                            taskIndex--;
-                        }
-
                     }
-                    lowPrioRemoveMutex.unlock();
+                    else{
+                        lowPriorityTaskQueue.erase(lowPriorityTaskQueue.begin()+taskIndex);
+                        if(currentTask->_taskRemoveMode == DELETE_MODE){
+                            delete currentTask;
+                        }
+                        taskIndex--;
+                    }
 
                 }
+
 
 
                 if(lowPrioAddMutex.try_lock()){
@@ -463,5 +445,24 @@ namespace TSWorker{
 
 
     } _lowPrioMasterTask;
+
+
+    bool taskHandler(){
+        for(uint32_t taskIndex = highPriorityTaskQueue.size(); highPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
+            (void)highPriorityTaskQueue[taskIndex-1]->_execute();
+
+
+        }
+
+        for(uint32_t taskIndex = lowPriorityTaskQueue.size(); _lowPrioMasterTask._isUsedByThread == false && lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
+            if(lowPriorityTaskQueue[taskIndex-1]->_execute() == true && lowPriorityTaskQueue[taskIndex-1] != &_lowPrioMasterTask){
+                break;
+            }
+
+        }
+
+        return !quitTaskHandling;
+    }
+
 
 }
