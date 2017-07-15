@@ -35,7 +35,7 @@ namespace TSWorker{
         friend class LowPriotityMasterTask;
 
         public:
-            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class priority enumeration for
+            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class enumeration for Task priority
 
 
 
@@ -186,12 +186,10 @@ namespace TSWorker{
             *
             * @param taskPriority - Task priority to which will Task be subscribe.
             *
-            * @note Can be used when removed by remove() function,
-            *  or when auto-subscribe is disabled by global variable.
+            * @note Can be used when removed by remove() function.
             *
-            * @see enable()
-            * @see removeDependency()
-            * @see removeDependency()
+            * @see remove()
+            * @see removeAndDelete()
             *
             ***********************************************************/
             void subscribe(const TaskPriority taskPriority);
