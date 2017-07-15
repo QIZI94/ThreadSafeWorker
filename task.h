@@ -35,7 +35,9 @@ namespace TSWorker{
         friend class LowPriotityMasterTask;
 
         public:
-            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class priority enumeration
+            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class priority enumeration for
+
+
 
             /*****************************************************//**
             * This is default constructor.
@@ -44,7 +46,6 @@ namespace TSWorker{
             *
             ***********************************************************/
             Task();
-
 
             /*****************************************************//**
             * Function is used to add dependencies/tasks that will be executed
@@ -56,16 +57,39 @@ namespace TSWorker{
             *
             * @note Dependency will be build in same order as function's parameters.
             *
-            * @note When this Task already has some dependency build,
-            *  new dependecies will instert itself right after this Task and befor old dependencies
             *
-            *
+            * @see addDependencyAfter()
             * @see removeDependency()
             * @see breakDependency()
             *
             ***********************************************************/
             template<typename ...Dependency>
             void addDependency(Dependency... dependecies){/// make me addDependency and rewrite doxygen
+                ///to be implemented
+            }
+
+            /*****************************************************//**
+            * Function is used to add dependencies/tasks that will be executed
+            *  by this Task before executing this Task,
+            *  its meant to preserve context of execution.
+            *
+            * @note When this Task already has some dependency build,
+            *  new dependecies will instert itself right after this Task and before old dependencies
+            *
+            *
+            * @param dependencies - an variadic parameter that takes pointers to Tasks.
+            *
+            *
+            * @note Dependency will be build in same order as function's parameters.
+            *
+            *
+            * @see addDependency()
+            * @see removeDependency()
+            * @see breakDependency()
+            *
+            ***********************************************************/
+            template<typename ...Dependency>
+            void addDependencyAfter(Dependency... dependecies){/// make me addDependency and rewrite doxygen
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
 
@@ -92,6 +116,8 @@ namespace TSWorker{
 
             }
 
+
+
             /*****************************************************//**
             * Function takes pointer to Task which will be compared to this Task's
             *  dependencies and if match is found remove it form chain of dependencies
@@ -108,6 +134,7 @@ namespace TSWorker{
             *
             ***********************************************************/
             void removeDependency(const Task* dependency);
+
 
 
             /*****************************************************//**
@@ -134,6 +161,8 @@ namespace TSWorker{
             ***********************************************************/
             void enable();
 
+
+
             /*****************************************************//**
             * Function is used to set dependencies/tasks that will be executed
             *  by this Task before executing this task,
@@ -149,6 +178,8 @@ namespace TSWorker{
             ***********************************************************/
             void disable();
 
+
+
             /*****************************************************//**
             * This function will add this to pending addition list
             *  and will be added when 'MasterTask' routine will add it to task queue.
@@ -159,10 +190,13 @@ namespace TSWorker{
             *  or when auto-subscribe is disabled by global variable.
             *
             * @see enable()
-            * @see remove()
+            * @see removeDependency()
+            * @see removeDependency()
             *
             ***********************************************************/
             void subscribe(const TaskPriority taskPriority);
+
+
 
             /*****************************************************//***
             * This function will add task to remove list
@@ -178,6 +212,8 @@ namespace TSWorker{
             ***********************************************************/
             void remove();
 
+
+
             /*****************************************************//***
             * This function will use remove() function but also trigger
             *  deletion of Task's memory in 'MasterTask' routine.
@@ -187,6 +223,20 @@ namespace TSWorker{
             *
             ***********************************************************/
             void removeAndDelete();
+
+
+            /*****************************************************//**
+            * This function will return the pointer to next dependency.
+            *
+            * @return - when the Task doesn't have any dependency returns nullptr
+            *  and when it does return address.
+            *
+            * @see addDependency()
+            * @see removeDependency();
+            * @see breakDependency()
+            *
+            ***********************************************************/
+            Task* getDependentTask() const;
 
 
             /*****************************************************//**
@@ -204,12 +254,48 @@ namespace TSWorker{
             ***********************************************************/
             bool isEnabled() const;
 
+
+
+            /*****************************************************//**
+            * This function will check if Task is enabled
+            *  deletion of Task's memory in 'MasterTask' routine.
+            *
+            * @return - true when task is enabled otherwise returns false.
+            *
+            * @note This function will not check if Task is subscribed
+            *  (or if it was removed)
+            *
+            * @see enable()
+            * @see disable()
+            *
+            ***********************************************************/
             bool isExecuted() const;
 
 
+
+            /*****************************************************//**
+            * This function will check if Task is in activaly handled
+            *  by taskHandler().
+            *
+            * @return - true when task is subscribed to list of
+            *  actively executed tasks, otherwise returns false.
+            *
+            ***********************************************************/
             bool isSubscribed() const;
 
-            Task* getDependentTask() const;
+
+
+            /*****************************************************//**
+            * This function will check if this Task is executed by other Task
+            *  which is dependent on this Task.
+            *
+            * @return - true when Task is executed by dependency,
+            *  otherwise returns false.
+            *
+            ***********************************************************/
+            bool isDependency() const;
+
+
 
             /*****************************************************//**
             * Default virtual destructor
@@ -260,13 +346,24 @@ namespace TSWorker{
             * @see run()
             *
             ***********************************************************/
-            bool _recursiveDependencyExecute(Task* task);
             bool _execute();
 
 
+            /*****************************************************//**
+            * This function is used by _execute() fucntion that will
+            *  execute dependent Tasks in recursive manner.
+            *
+            * @param task - is pointer to Task which will be executed
+            *  after all its dependencies were also executed.
+            *
+            ***********************************************************/
+            void _recursiveDependencyExecute(Task* task);
+
+
+
             std::mutex                              _taskMutex;                 ///< ensures that task is only executed on one thread at the time
-            Task*                                   _dependentTask;
-            std::chrono::steady_clock::time_point   _timeOfStart;
+            Task*                                   _dependentTask;             ///< pointer to dependency which will be executed befor this Task
+            std::chrono::steady_clock::time_point   _timeOfStart;               ///< time point when executing of Task has started
             std::atomic<TaskRemoveMode>             _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
             std::atomic<bool>                       _isUsedByThread;            ///< is used to detect if Task is already executed by functions
             std::atomic<bool>                       _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
@@ -289,7 +386,7 @@ namespace TSWorker{
     * @see Task
     *
     ***********************************************************/
-    void setHighPriorityTaskTimeOut(unsigned int minTaskTime);
+    void setHighPriorityTaskTimeOut(const unsigned int minTaskTime);
 
 
 
@@ -305,7 +402,42 @@ namespace TSWorker{
     * @see Task
     *
     ***********************************************************/
-    void setLowPriorityTaskTimeOut(unsigned int minTaskTime);
+    void setLowPriorityTaskTimeOut(const unsigned int minTaskTime);
+
+
+
+    /*****************************************************//**
+    * This function will set return value of taskHandler()
+    *  and also prevets taskHandler() from handling any task.
+    *
+    * @param enableTaskHandler - return value for taskHandler.
+    *
+    * @note When this function is set to true it will make taskHandler()
+    * also return true, when set to false taskHandler() will returns false.
+    *
+    * @see setHighPriorityTaskTimeOut()
+    * @see Task
+    *
+    ***********************************************************/
+    void enableTaskHandling(const bool enableTaskHandler = true);
+
+
+
+    /*****************************************************//**
+    * Same as enableTaskHandling(false)
+    *
+    ***********************************************************/
+    void disableTaskHandling();
+
+
+
+    /*****************************************************//**
+    * This function will return taskHandling state.
+    *
+    * @return true when taskHandling is enabled otherwise false
+    *
+    ***********************************************************/
+    bool isTaskHandlingEnabled();
 
 
 

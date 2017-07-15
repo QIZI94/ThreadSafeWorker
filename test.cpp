@@ -59,7 +59,7 @@ struct test2 : TSWorker::Task{
 struct task0 : public TSWorker::Task{
 
     void run(){
-      //  subscribe(TSWorker::Task::LOW_PRIO);
+        subscribe(TSWorker::Task::LOW_PRIO);
         std::cout<<"This si ###historytask###\n";
 
     }
@@ -68,7 +68,7 @@ struct task0 : public TSWorker::Task{
 
 struct taskA : public TSWorker::Task{
     taskA(){
-
+        subscribe(TSWorker::Task::LOW_PRIO);
         //addDependency(&t0);
 
     }
@@ -102,7 +102,7 @@ struct taskC : public TSWorker::Task{
     taskC(){
         subscribe(TSWorker::Task::LOW_PRIO);
         //addDependency(&tb);
-        addDependency(&ta);
+       // addDependency(&ta);
 
     }
     void run(){
