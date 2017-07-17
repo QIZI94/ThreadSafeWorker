@@ -17,6 +17,7 @@ As the name implies, it's concept of workers/tasks that are created at one place
 	   
 ## Examples and Usage
 
+
 ### Basic Usecase:
 
 Basic usage where only on thread(main thread) is used for task handling with only two high priority and two low priority tasks:
@@ -60,6 +61,8 @@ int main(){
 }
 
 ```
+
+
 We can make Tasks execute asynchronusly by adding extra threads that will executes taskHandler() function:
 ```C++
 ...
@@ -97,6 +100,8 @@ int main(){
 	
 }
 ```
+
+
 Task can be made to execute only once:
 ```C++
 ...
@@ -123,9 +128,11 @@ int main(){
 
 ```
 ### Task Depenecies
+
 	Dependences are useful in case that you have multi threaded task handling but you still need some Tasks that need to be executed in context.
 	Task that have depenecies and is subscribed to taskHandler lists will first execute run() function from all depedencies,
 	before executing its own run().
+	
 ```C++
 
 ...
