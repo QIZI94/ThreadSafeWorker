@@ -3,18 +3,18 @@
 ## Description:
 As the name implies, it's concept of workers/tasks that are created at one place and handled at another place.
 Tasks are executed with taskHandler() function, which can be put on multiple threads in the same time.
-This make it very suitable in setups such as threadpools (other uses are not restricted).
+This make it very suitable in setups such as thread-pools (other uses are not restricted).
 
 ## Features:
 1. A round based Task execution, which ensures that every single Task is executed only once in the same round and that TaskQueue is only modified when no Task is executing(at the end of the round).
-2. Adding and removing Tasks during runtime.
+2. Adding and removing Tasks during run-time.
 3. Managed deletion of Task's allocated memory.
 4. Enabling and disabling Tasks.
 5. Task's Dependency (adding, removing and execution).
 6. Optional ignoring/skipping the task if execution takes too long (it will starts the new round without waiting for Task).
 7. Priority based Task handling:
- *  1. HIGH_PRIO - Task will be executed as fast as possible taskHandler() function( suitable for low latency Tasks).
- *  2. LOW_PRIO  - Only one Task is executed per taskHandler() function (suitable for high latency Tasks,
+ *  a) HIGH_PRIO - Task will be executed as fast as possible taskHandler() function( suitable for low latency Tasks).
+ *  b) LOW_PRIO  - Only one Task is executed per taskHandler() function (suitable for high latency Tasks,
 	   usually beneficial for Tasks with timers that that use milliseconds or seconds precision).
 
 ## Examples and Usage
@@ -22,7 +22,7 @@ This make it very suitable in setups such as threadpools (other uses are not res
 
 ### Basic use case:
 
-Basic usage where only on thread(main thread) is used for task handling with only two high priority and two low priority tasks:
+Basic usage where only one thread(main thread) is used for task handling with only two high priority and two low priority tasks:
 ```C++
 #include "Task.h"
 #include <iostream>
@@ -207,11 +207,11 @@ class TestTask : public TSWorker::Task{
 
 }_testTask;
 //this technique can eliminate the need for header files in some cases,
- because it just need to be compiled and linked with main that have taskHandler in loop to work properly.
+//because it just need to be compiled and linked with main that have taskHandler in loop to work properly.
 
 ```
 
-Dependencies can be build in many ways, on of them is to add task's dependency one after another:
+Dependencies can be build in many ways, one of them is to add task's dependency one after another:
 ```C++
 Task tA;
 Task tB;
@@ -227,7 +227,7 @@ tD.addDependency(&tC);
 tD.breakDependency();
 
 tC.addDependency(&tA);
-tD.addDepnedency(&tB);
+tD.addDependency(&tB);
 tD.addDependency(&tC);
 
 tD.subscribe(...some priority);
