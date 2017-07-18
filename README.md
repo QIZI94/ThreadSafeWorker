@@ -13,9 +13,9 @@ This make it very suitable in setups such as threadpools (other uses are not res
 5. Task's Dependency (adding, removing and execution).
 6. Optional ignoring/skipping the task if execution takes too long (it will starts the new round without waiting for Task).
 7. Priority based Task handling:
-``` 1. HIGH_PRIO - Task will be executed as fast as possible taskHandler() function( suitable for low latency Tasks).```
-``` 2. LOW_PRIO  - Only one Task is executed per taskHandler() function (suitable for high latency Tasks,
-	   usually beneficial for Tasks with timers that that use milliseconds or seconds precision).```
+ *  1. HIGH_PRIO - Task will be executed as fast as possible taskHandler() function( suitable for low latency Tasks).
+ *  2. LOW_PRIO  - Only one Task is executed per taskHandler() function (suitable for high latency Tasks,
+	   usually beneficial for Tasks with timers that that use milliseconds or seconds precision).
 
 ## Examples and Usage
 
@@ -129,11 +129,16 @@ int main(){
 }
 
 ```
+
+
+
 ### Task Dependencies
 
 	Dependencies are useful in case that you have multi threaded task handling but you still need some Tasks that need to be executed in context.
 	Task that have dependencies and is subscribed to taskHandler lists will first execute run() function from all dependencies,
 	before executing its own run().
+
+
 
 ```C++
 
@@ -184,4 +189,47 @@ Dependencies can be also removed, added right after Task that have dependencies 
 ```
 
 
+## Tips and Tricks
 
+Task can be declared globally and add itself to handled tasks in construction phase:
+```C++
+//inside some cpp file
+...
+class TestTask : public TSWorker::Task{
+    public:
+    TestTask(){
+        subscribe(TSWorker::Task::HIGH_PRIO)
+    }
+    private:
+    void run(){
+        std::cout<<"globally declared task is running\n";
+    }
+
+}_testTask;
+//this technique can eliminate the need for header files in some cases,
+ because it just need to be compiled and linked with main that have taskHandler in loop to work properly.
+
+```
+
+Dependencies can be build in many ways, on of them is to add task's dependency one after another:
+```C++
+Task tA;
+Task tB;
+Task tC;
+Task tD;
+
+
+tB.addDependency(&tA);
+tC.addDependency(&tB);
+tD.addDependency(&tC);
+
+//or
+tD.breakDependency();
+
+tC.addDependency(&tA);
+tD.addDepnedency(&tB);
+tD.addDependency(&tC);
+
+tD.subscribe(...some priority);
+
+```
