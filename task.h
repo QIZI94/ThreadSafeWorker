@@ -74,7 +74,7 @@ namespace TSWorker{
             *  its meant to preserve context of execution.
             *
             * @note When this Task already has some dependency build,
-            *  new dependecies will instert itself right after this Task and before old dependencies
+            *  new dependencies will insert itself right after this Task and before old dependencies
             *
             *
             * @param dependencies - an variadic parameter that takes pointers to Tasks.
@@ -138,8 +138,8 @@ namespace TSWorker{
 
 
             /*****************************************************//**
-            * Remove all tasks dependecies breaking the whole chain,
-            *  becouse it will also remove dependencies between dependecy tasks.
+            * Remove all tasks dependencies breaking the whole chain,
+            *  because it will also remove dependencies between dependent Tasks.
             *
             *
             * @note This is useful when rebuilding the dependency chain.
@@ -226,7 +226,7 @@ namespace TSWorker{
             /*****************************************************//**
             * This function will return the pointer to next dependency.
             *
-            * @return - when the Task doesn't have any dependency returns nullptr
+            * @return - when the Task does not have any dependency returns nullptr
             *  and when it does return address.
             *
             * @see addDependency()
@@ -348,7 +348,7 @@ namespace TSWorker{
 
 
             /*****************************************************//**
-            * This function is used by _execute() fucntion that will
+            * This function is used by _execute() function that will
             *  execute dependent Tasks in recursive manner.
             *
             * @param task - is pointer to Task which will be executed
@@ -374,11 +374,11 @@ namespace TSWorker{
 
     /*****************************************************//**
     * This function will set minimal time that high priority cleaning procedure
-    *  will wait until task it will be ignored, so the cleaning proccess can start a new round.
+    *  will wait until task it will be ignored, so the cleaning process can start a new round.
     *
     * @note When setting it to '0' there will no ignoring so when one task will longer than
     *  other tasks to complete whole round cleaning will wait endlessly for task to complete.
-    *  (this can be testd by putting while(true); in run function of subscribed task)
+    *  (this can be tested by putting while(true); in run function of subscribed task)
     *
     * @see setHighPriorityTaskTimeOut()
     * @see Task
@@ -390,11 +390,11 @@ namespace TSWorker{
 
     /*****************************************************//**
     * This function will set minimal time that low priority cleaning procedure
-    *  will wait until task it will be ignored, so the cleaning proccess can start a new round.
+    *  will wait until task it will be ignored, so the cleaning process can start a new round.
     *
     * @note When setting it to '0' there will no ignoring so when one task will longer than
     *  other tasks to complete whole round cleaning will wait endlessly for task to complete.
-    *  (this can be testd by putting while(true); in run function of subscribed task)
+    *  (this can be tested by putting while(true); in run function of subscribed task)
     *
     * @see setHighPriorityTaskTimeOut()
     * @see Task
@@ -406,7 +406,7 @@ namespace TSWorker{
 
     /*****************************************************//**
     * This function will set return value of taskHandler()
-    *  and also prevets taskHandler() from handling any task.
+    *  and also prevents taskHandler() from handling any task.
     *
     * @param enableTaskHandler - return value for taskHandler.
     *

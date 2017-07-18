@@ -29,10 +29,8 @@
 #include "task.h"
 
 #define DEBUG_INFO
-
-#ifdef DEBUG_INFO
 #include <iostream>
-#endif // DEBUG_INFO
+
 
 
 namespace TSWorker{
@@ -378,9 +376,7 @@ namespace TSWorker{
     {
         if(_taskRemoveMode != DELETE_MODE){/// if true master Task will handle deletion from main Task queue
             remove(); /// attempt to prevent segmentation falut, if cleaning process happens to be fast and remove this Task from execution queue.
-            #ifdef DEBUG_INFO
             std::cerr<<"Warning: deletion of Task detected outside of master Task\n.";
-            #endif // DEBUG_INFO
         }
     }
 
