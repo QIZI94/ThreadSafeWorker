@@ -26,7 +26,11 @@
 #include <mutex>
 #include <iostream>
 
+#define TASK_FUNCTION(funcname) void funcname(TSWorker::Task* thisTask)
+
 namespace TSWorker{
+
+
 
     class Task
     {
@@ -64,8 +68,24 @@ namespace TSWorker{
             *
             ***********************************************************/
             template<typename ...Dependency>
-            void addDependency(Dependency... dependecies){/// make me addDependency and rewrite doxygen
-                ///to be implemented
+            void addDependency(Dependency... dependecies){
+
+                std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
+                Task* currentTask = this;
+                while(currentTask->_dependentTask != nullptr){
+                    currentTask = currentTask->_dependentTask;
+                }
+
+                for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); ++taskDependencyIndex){
+                    if(deps[taskDependencyIndex]->_isExecutedByDependency == false && this != deps[taskDependencyIndex]){
+                        currentTask->_dependentTask                             = deps[taskDependencyIndex];
+                        currentTask->_dependentTask->remove();
+                        currentTask->_dependentTask->_isExecutedByDependency    = true;
+                        currentTask                                             = currentTask->_dependentTask;
+
+                    }
+                }
+
             }
 
             /*****************************************************//**
@@ -89,7 +109,7 @@ namespace TSWorker{
             *
             ***********************************************************/
             template<typename ...Dependency>
-            void addDependencyAfter(Dependency... dependecies){/// make me addDependency and rewrite doxygen
+            void addDependencyAfter(Dependency... dependecies){
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
 
@@ -223,6 +243,8 @@ namespace TSWorker{
             void removeAndDelete();
 
 
+            void setAsDynamicallyAllocated();
+
             /*****************************************************//**
             * This function will return the pointer to next dependency.
             *
@@ -293,7 +315,7 @@ namespace TSWorker{
             ***********************************************************/
             bool isDependency() const;
 
-
+            bool isDynamicallyAllocated() const;
 
             /*****************************************************//**
             * Default virtual destructor
@@ -368,6 +390,7 @@ namespace TSWorker{
             std::atomic<bool>                       _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
             std::atomic<bool>                       _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
             TaskPriority                            _taskPriority;              ///< is used to check if Task is high priority
+            bool                                    _isDynamicallyAllocated;    ///< this prevents unintentional deletion of static or stack allocated objects
 
     };
 
@@ -402,6 +425,46 @@ namespace TSWorker{
     ***********************************************************/
     void setLowPriorityTaskTimeOut(const unsigned int minTaskTime);
 
+
+
+
+    template <class taskClass>
+    /*****************************************************//**
+    * This function will spawn a Task with selected priority
+    *  and returns the address of newly created Task.
+    *
+    * @param taskClass - takes inherited Task class which will be used to spawn task
+    *
+    * @param taskPriority - task priority to which will be Task subscribed
+    *
+    * @return address of newly created task
+    *
+    * @see spawnTaskFunction()
+    *
+    ***********************************************************/
+    Task* spawnTask(Task::TaskPriority taskPriority = Task::HIGH_PRIO){
+        Task* newTask = new taskClass;
+        newTask->setAsDynamicallyAllocated();
+        newTask->subscribe(taskPriority);
+        return newTask;
+    }
+
+
+    typedef void (*TaskFunction)(Task* thisTask);
+    /*****************************************************//**
+    * This function will spawn  a Task that will execute selected function with selected priority
+    *  and returns the address of newly created Task.
+    *
+    * @param taskFunction - takes function and execute it as if it was a Task object.
+    *
+    * @param taskPriority - task priority to which will be Task subscribed
+    *
+    * @return address of newly created task
+    *
+    * @see spawnTask()
+    *
+    ***********************************************************/
+    Task* spawnTaskFunction(TaskFunction taskFunction, Task::TaskPriority taskPriority = Task::HIGH_PRIO);
 
 
     /*****************************************************//**

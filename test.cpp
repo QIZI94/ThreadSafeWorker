@@ -107,7 +107,7 @@ struct taskC : public TSWorker::Task{
     }
     void run(){
         if(depAdded == false){
-           // addDependency(&t0, &ta);
+          // addDependency(&t0, &ta);
             depAdded = true;
         }
         else{
@@ -121,10 +121,14 @@ struct taskC : public TSWorker::Task{
 
 } tc ;
 
+TASK_FUNCTION(taskFn){
+//void taskFn(TSWorker::Task* task){
+    thisTask->removeAndDelete();
+    std::cout<<"This is taskFunction@@@@@@@@@@@@@@@@@@@\n";
+}
 
 void threadFunction(){
     while(TSWorker::taskHandler() == true);
-
 }
 
 int main(){
@@ -135,7 +139,7 @@ int main(){
 
 
     test1 t1;
-
+    t1.addDependency(&ta);
     TSWorker::setLowPriorityTaskTimeOut(0);
     TSWorker::setHighPriorityTaskTimeOut(0);
    // t1.subscribe(TSWorker::Task::LOW_PRIO);
@@ -146,6 +150,8 @@ int main(){
     std::thread th1(threadFunction);
     std::thread th2(threadFunction);
     std::thread th3(threadFunction);
+
+
     /*std::thread th4(threadFunction);
     std::thread th5(threadFunction);
     std::thread th6(threadFunction);
@@ -166,6 +172,7 @@ int main(){
 
     for(;;){
         if(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timeOfStart).count() > 10000){
+          /* new test2;
            new test2;
            new test2;
            new test2;
@@ -174,10 +181,17 @@ int main(){
            new test2;
            new test2;
            new test2;
-           new test2;
-
-
-
+*/
+            TSWorker::spawnTaskFunction(taskFn, TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
            // (new test2)->subscribe(TSWorker::Task::LOW_PRIO);
             //t->subscribe(TSWorker::Task::LOW_PRIO);
             timeOfStart = std::chrono::steady_clock::now();

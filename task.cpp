@@ -107,7 +107,12 @@ namespace TSWorker{
                     else{
                         highPriorityTaskQueue.erase(highPriorityTaskQueue.begin()+taskIndex);
                         if(currentTask->_taskRemoveMode == DELETE_MODE){
-                            delete currentTask;
+                            if(currentTask->_isDynamicallyAllocated == true){
+                                delete currentTask;
+                            }
+                            else{
+                                std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
+                            }
                         }
                         taskIndex--;
                     }
@@ -212,7 +217,12 @@ namespace TSWorker{
                     else{
                         lowPriorityTaskQueue.erase(lowPriorityTaskQueue.begin()+taskIndex);
                         if(currentTask->_taskRemoveMode == DELETE_MODE){
-                            delete currentTask;
+                            if(currentTask->_isDynamicallyAllocated == true){
+                                delete currentTask;
+                            }
+                            else{
+                                std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
+                            }
                         }
                         taskIndex--;
                     }
@@ -256,6 +266,7 @@ namespace TSWorker{
         _dependentTask          = nullptr;
         _isExecutedByDependency = false;
         _isEnabled              = true;
+        _isDynamicallyAllocated = false;
         _taskRemoveMode         = REMOVE_MODE;
 
     }
@@ -346,10 +357,16 @@ namespace TSWorker{
         if(_taskRemoveMode == NOACTION_MODE){
             _taskRemoveMode = DELETE_MODE;
         }
+        _isAlreadyExecuted      = true;
+        _isExecutedByDependency = false;
     }
 
     void Task::executeAgain(){
         _isAlreadyExecuted = false;
+    }
+
+    void Task::setAsDynamicallyAllocated(){
+        _isDynamicallyAllocated = true;
     }
 
     Task* Task::getDependentTask() const{
@@ -369,14 +386,16 @@ namespace TSWorker{
         return _isExecutedByDependency;
     }
 
-
+    bool Task::isDynamicallyAllocated() const{
+        return _isDynamicallyAllocated;
+    }
 
 
     Task::~Task()
     {
-        if(_taskRemoveMode != DELETE_MODE){/// if true master Task will handle deletion from main Task queue
-            remove(); /// attempt to prevent segmentation falut, if cleaning process happens to be fast and remove this Task from execution queue.
-            std::cerr<<"Warning: deletion of Task detected outside of master Task\n.";
+        if(_taskRemoveMode != DELETE_MODE && _isDynamicallyAllocated == true){/// if true master Task will handle deletion from main Task queue
+            remove(); /// attempt to prevent segmentation fault, if cleaning process happens to be fast and remove this Task from execution queue.
+            std::cerr<<"Warning: deletion of Task detected outside of master Task.\n";
         }
     }
 
@@ -385,6 +404,14 @@ namespace TSWorker{
         if(task->_dependentTask != nullptr){
 
             if(task->_dependentTask->_isExecutedByDependency == false){
+                    if(this->_dependentTask->_taskRemoveMode == DELETE_MODE){
+                        if(this->_dependentTask->_isDynamicallyAllocated == true){
+                            delete this->_dependentTask;
+                        }
+                        else{
+                            std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
+                        }
+                    }
                     task->_dependentTask = nullptr;
             }
             else {
@@ -419,7 +446,14 @@ namespace TSWorker{
 
             if(this->_dependentTask != nullptr){
                 if(this->_dependentTask->_isExecutedByDependency == false){
-
+                    if(this->_dependentTask->_taskRemoveMode == DELETE_MODE){
+                        if(this->_dependentTask->_isDynamicallyAllocated == true){
+                            delete this->_dependentTask;
+                        }
+                        else{
+                            std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
+                        }
+                    }
                     this->_dependentTask = nullptr;
                 }
                 else {
@@ -442,15 +476,41 @@ namespace TSWorker{
 
         lowPrioMinTaskTime = minTaskTime;
     }
+
     void setLowPriorityTaskTimeOut(const unsigned int minTaskTime){
 
         lowPrioMinTaskTime = minTaskTime;
+    }
+
+
+    Task* spawnTaskFunction(TaskFunction taskFunction, Task::TaskPriority taskPriority){
+        class functionTask : public Task{
+
+            public:
+            functionTask(TaskFunction tFunction){
+                this->tFunction = tFunction;
+            }
+
+            private:
+            void run(){
+                tFunction(this);
+            }
+
+            TaskFunction tFunction;
+        };
+
+        Task* newTask = new functionTask(taskFunction);
+        newTask->setAsDynamicallyAllocated();
+        newTask->subscribe(taskPriority);
+        return newTask;
+
     }
 
     void enableTaskHandling(const bool enableTaskHandler){
 
         quitTaskHandling = !enableTaskHandler;
     }
+
     void disableTaskHandling(){
 
         enableTaskHandling(false);
