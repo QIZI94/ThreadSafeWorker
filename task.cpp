@@ -271,7 +271,7 @@ namespace TSWorker{
 
     }
 
-    void Task::removeDependency(const Task* dependency){
+    bool Task::removeDependency(const Task* dependency){
 
         Task* currentTask = this;
 
@@ -280,15 +280,27 @@ namespace TSWorker{
             if(currentTask->_dependentTask == dependency){
                 currentTask->_dependentTask->_isExecutedByDependency = false;
                 currentTask->_dependentTask = currentTask->_dependentTask->_dependentTask;
-                break;
+                return true;
 
             }
-
 
             currentTask = currentTask->_dependentTask;
         }
 
+        return false;
+
     }
+
+    bool Task::deleteDependency(const Task* dependency){
+        bool dependencyRemoved = removeDependency(dependency);
+
+        if(dependencyRemoved == true && dependency->_isDynamicallyAllocated == true){
+            delete dependency;
+        }
+
+        return dependencyRemoved;
+    }
+
     void Task::breakDependency(){
 
         Task* previus = this;

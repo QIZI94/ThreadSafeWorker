@@ -56,6 +56,18 @@ struct test2 : TSWorker::Task{
 };
 
 
+struct test3 : TSWorker::Task{
+    int count;
+    test3(int count){
+        this->count = count;
+    }
+    void run(){
+        std::cout<<"Test3 count variable is set to '"<<count<<"'\n";
+        removeAndDelete();
+
+    }
+};
+
 struct task0 : public TSWorker::Task{
 
     void run(){
@@ -183,6 +195,8 @@ int main(){
            new test2;
 */
             TSWorker::spawnTaskFunction(taskFn, TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTaskFunction(TASK_LAMBDA(){std::cout<<"This is lambda function&&&&&&&&&&&&&&&&&&&&&&&\n"; thisTask->removeAndDelete();}
+                                        ,TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
@@ -192,6 +206,8 @@ int main(){
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+
+            TSWorker::spawnTask<test3>(TSWorker::Task::HIGH_PRIO,5);
            // (new test2)->subscribe(TSWorker::Task::LOW_PRIO);
             //t->subscribe(TSWorker::Task::LOW_PRIO);
             timeOfStart = std::chrono::steady_clock::now();

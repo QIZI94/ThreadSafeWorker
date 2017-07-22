@@ -27,6 +27,7 @@
 #include <iostream>
 
 #define TASK_FUNCTION(funcname) void funcname(TSWorker::Task* thisTask)
+#define TASK_LAMBDA(capture)    [capture](TSWorker::Task* thisTask)
 
 namespace TSWorker{
 
@@ -51,6 +52,9 @@ namespace TSWorker{
             ***********************************************************/
             Task();
 
+
+
+            template<typename ...Dependency>
             /*****************************************************//**
             * Function is used to add dependencies/tasks that will be executed
             *  by this Task before executing this task,
@@ -67,7 +71,6 @@ namespace TSWorker{
             * @see breakDependency()
             *
             ***********************************************************/
-            template<typename ...Dependency>
             void addDependency(Dependency... dependecies){
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
@@ -88,6 +91,8 @@ namespace TSWorker{
 
             }
 
+
+            template<typename ...Dependency>
             /*****************************************************//**
             * Function is used to add dependencies/tasks that will be executed
             *  by this Task before executing this Task,
@@ -108,12 +113,11 @@ namespace TSWorker{
             * @see breakDependency()
             *
             ***********************************************************/
-            template<typename ...Dependency>
             void addDependencyAfter(Dependency... dependecies){
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
 
-                bool isSomethingNewAdded = false;
+                bool isNewTaskAdded = false;
                 Task* currentTask = this;
                 Task* originalDependentTask = this->_dependentTask;
 
@@ -123,11 +127,11 @@ namespace TSWorker{
                         currentTask->_dependentTask                             = deps[taskDependencyIndex];
                         currentTask->_dependentTask->remove();
                         currentTask->_dependentTask->_isExecutedByDependency    = true;
-                        isSomethingNewAdded = true;
+                        isNewTaskAdded = true;
                         currentTask                                             = currentTask->_dependentTask;
                     }
                 }
-                if(isSomethingNewAdded == true){
+                if(isNewTaskAdded == true){
                     while(currentTask->_dependentTask != nullptr){
                         currentTask = currentTask->_dependentTask;
                     }
@@ -140,20 +144,33 @@ namespace TSWorker{
 
             /*****************************************************//**
             * Function takes pointer to Task which will be compared to this Task's
-            *  dependencies and if match is found remove it form chain of dependencies
+            *  dependencies and if match is found, remove it form chain of dependencies
             *
             *
             * @param dependency - an pointer to Task
             *
             *
+            * @see removeDependency()
+            * @see breakDependency()
             *
-            * @note When this specific Task is removed,
+            ***********************************************************/
+            bool removeDependency(const Task* dependency);
+
+
+            /*****************************************************//**
+            * Function takes pointer to Task which will be compared to this Task's
+            *  dependencies and if match is found, remove it form chain of dependencies
+            *  and dealocate when Task is dynamically allocated
+            *
+            *
+            * @param dependency - an pointer to Task
+            *
             *
             * @see removeDependency()
             * @see breakDependency()
             *
             ***********************************************************/
-            void removeDependency(const Task* dependency);
+            bool deleteDependency(const Task* dependency);
 
 
 
@@ -243,6 +260,15 @@ namespace TSWorker{
             void removeAndDelete();
 
 
+
+            /*****************************************************//***
+            * This function will mark this Task as dynamically allocated
+            *  to prevent uninteninal deletion of static and stack allocated Tasks.
+            *
+            *
+            * @see isDynamicallyAllocated()
+            *
+            ***********************************************************/
             void setAsDynamicallyAllocated();
 
             /*****************************************************//**
@@ -315,7 +341,20 @@ namespace TSWorker{
             ***********************************************************/
             bool isDependency() const;
 
+
+            /*****************************************************//**
+            * This function will check if this Task is dynamically
+            *  allocated.
+            *
+            * @return - true when Task is dynamically allocated,
+            *  otherwise returns false.
+            *
+            * @see setAsDynamicallyAllocated()
+            *
+            ***********************************************************/
             bool isDynamicallyAllocated() const;
+
+
 
             /*****************************************************//**
             * Default virtual destructor
@@ -428,7 +467,7 @@ namespace TSWorker{
 
 
 
-    template <class taskClass>
+    template <class taskClass, typename ...ClassParam>
     /*****************************************************//**
     * This function will spawn a Task with selected priority
     *  and returns the address of newly created Task.
@@ -437,13 +476,16 @@ namespace TSWorker{
     *
     * @param taskPriority - task priority to which will be Task subscribed
     *
+    * @param taskClassArgs - when the class constructor does have parameters,
+    *  they can be passed by this variadic parameter
+    *
     * @return address of newly created task
     *
     * @see spawnTaskFunction()
     *
     ***********************************************************/
-    Task* spawnTask(Task::TaskPriority taskPriority = Task::HIGH_PRIO){
-        Task* newTask = new taskClass;
+    Task* spawnTask(Task::TaskPriority taskPriority = Task::HIGH_PRIO, ClassParam&& ... taskClassArgs){
+        Task* newTask = new taskClass(taskClassArgs ...);
         newTask->setAsDynamicallyAllocated();
         newTask->subscribe(taskPriority);
         return newTask;
