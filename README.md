@@ -104,7 +104,24 @@ int main(){
 ```
 
 
-Task can be made to execute only once:
+
+
+### Dynamically created Tasks
+```C++
+
+class TestTask : public TSWorker::Task{
+	std::cout<<"This task is dynamically allocated!!!\n";
+
+}
+
+...
+///main()
+TSWorker::spawnTask<TestTask>(TSWorker::Task::HIGH_PRIO);
+...
+
+```
+
+Task can be made to execute only once and then deleted, which is very useful in cases where there is one time action:
 ```C++
 ...
 
@@ -122,14 +139,38 @@ class oneTimeTask : public TSWorker::Task{
 
 int main(){
 	...
-	oneTimeTask* otTask = new oneTimeTask;
-	otTask->subscribe(TSWorker::Task::HIGH_PRIO);
+	spawnTask<oneTimeTask>(TSWorker::Task::HIGH_PRIO);
 	...
-
 }
 
 ```
 
+Dynamically allocated Task's constructor can also have default parameters whitch can be passed:
+```C++
+class ParamTask : public TSWorker::Task{
+	public:
+	ParamTask(float x, float y){
+		this->x = x;
+		this->y = y;
+	}
+	
+	void run(){
+	
+		std::cout<<"This task has been dynamically created with parameters X with value "<<x<<" and Y with value"<<"y"<<".\n"
+	}
+	
+	private:
+	float x;
+	float y;
+}
+
+...
+//main
+TSWorker::spawnTask<ParamTask>(TSWorker::Task::HIGH_PRIO, 8.658f, 3.14f); //passing parameters after Task priority
+...
+```
+
+ 
 
 
 ### Task Dependencies
@@ -189,7 +230,7 @@ Dependencies can be also removed, added right after Task that have dependencies 
 ```
 
 
-## Tips and Tricks
+### Tips and Tricks
 
 Task can be declared globally and add itself to handled tasks in construction phase:
 ```C++
