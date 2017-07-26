@@ -145,8 +145,8 @@ void threadFunction(){
 
 int main(){
 
-    std::cout<<"Sizeof: "<<sizeof(std::mutex)<<'\0';
-   //std::cin.get();
+    std::cout<<"Sizeof Task: "<<sizeof(std::chrono::steady_clock::time_point)<<'\0';
+   std::cin.get();
     //test1* t1 = new test1;
 
 

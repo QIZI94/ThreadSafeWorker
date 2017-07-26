@@ -35,26 +35,26 @@
 
 namespace TSWorker{
 
-    std::atomic<bool> quitTaskHandling(false);
+    static std::atomic<bool> quitTaskHandling(false);
 
 
     /**High priority handlers**/
-    std::mutex highPrioAddMutex;
-    std::vector<TSWorker::Task*> highPriorityTaskQueue;
-    std::vector<TSWorker::Task*> highPriorityTaskToAdd;
-    std::vector<TSWorker::Task*> highPriorityTaskToRemove;
-    unsigned int highPrioMinTaskTime = 1000;
-    std::atomic<bool> highPrioCleaning(false);
+    static std::mutex highPrioAddMutex;
+    static std::vector<TSWorker::Task*> highPriorityTaskQueue;
+    static std::vector<TSWorker::Task*> highPriorityTaskToAdd;
+    static std::vector<TSWorker::Task*> highPriorityTaskToRemove;
+    static unsigned int highPrioMinTaskTime = 1000;
+    static std::atomic<bool> highPrioCleaning(false);
 
 
 
 
-  /**High priority master task**/
+    /**High priority master task**/
 
 
     class HighPriotityMasterTask : public TSWorker::Task{
         public:
-            HighPriotityMasterTask() {
+            HighPriotityMasterTask() {/// add high priority mater task to high priority task queue before any other task
                 _taskPriority = TSWorker::Task::HIGH_PRIO;
                 _isUsedByThread = false;
                 _isAlreadyExecuted = false;
@@ -64,11 +64,12 @@ namespace TSWorker{
 
             }
             ~HighPriotityMasterTask(){
+                /// when main function ends, destruction of this object will stop taskHandling and make taskHandler() function return 'false'
                 quitTaskHandling = true;
             }
         private:
 
-            static bool taskTimeout(const Task* task){
+            static bool taskTimeout(const Task* task){///when Task takes more than specified time it will be ingnored and taskhandling will go to next round without it.
                 if(highPrioMinTaskTime == 0){
                     return true;
                 }
@@ -77,7 +78,7 @@ namespace TSWorker{
 
 
             void run(){
-
+                /// go through all Tasks and if all Tasks in high priority are executed and no more used by threads(ingnoring mater task)
                 for(uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex){
 
                     Task* currentTask = highPriorityTaskQueue[taskIndex];
@@ -92,13 +93,14 @@ namespace TSWorker{
                 #ifdef DEBUG_INFO
                 std::cout<<"Cleaning High prio\n";
                 #endif // DEBUG_INFO
-                highPrioCleaning = true;
+                highPrioCleaning = true; ///temoraly stops Task handling in taskHandlers
 
 
 
                 for ( uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex ){
 
                     Task* currentTask = highPriorityTaskQueue[taskIndex];
+                    /// clear the Task that are not marked as 'ready to remove'
                     if(currentTask->_taskRemoveMode == NOACTION_MODE){
                         if(currentTask->_isUsedByThread == false || currentTask == this){
                             currentTask->_isAlreadyExecuted = false;
@@ -106,6 +108,7 @@ namespace TSWorker{
                     }
                     else{
                         highPriorityTaskQueue.erase(highPriorityTaskQueue.begin()+taskIndex);
+                        /// when task is marked as 'ready for delete'
                         if(currentTask->_taskRemoveMode == DELETE_MODE){
                             if(currentTask->_isDynamicallyAllocated == true){
                                 delete currentTask;
@@ -123,10 +126,11 @@ namespace TSWorker{
 
 
 
-                if(highPrioAddMutex.try_lock()){
+                if(highPrioAddMutex.try_lock()){/// try to lock when noone is adding Task at the moment
                     #ifdef DEBUG_INFO
                     std::cout<<"Added High: ("<<(unsigned int)highPriorityTaskToAdd.size()<<")\n";
                     #endif // DEBUG_INFO
+                    /// go through highPriority 'add' queue and add Task here when no operations with highPriorityTaskQueue are running
                     for ( uint32_t taskAddIndex = 0; taskAddIndex < highPriorityTaskToAdd.size(); ++taskAddIndex ){
 
                         highPriorityTaskQueue.push_back(highPriorityTaskToAdd[taskAddIndex]);
@@ -141,19 +145,19 @@ namespace TSWorker{
             }
 
 
-    } _highPrioMasterTask;
+    }static  _highPrioMasterTask;
 
 
 
 
 
     /**Low priority handlers**/
-    std::mutex lowPrioAddMutex;
-    std::vector<TSWorker::Task*> lowPriorityTaskQueue;
-    std::vector<TSWorker::Task*> lowPriorityTaskToAdd;
-    std::vector<TSWorker::Task*> lowPriorityTaskToRemove;
-    unsigned int lowPrioMinTaskTime = 1000;
-    std::atomic<bool> lowPrioCleaning(false);
+    static std::mutex lowPrioAddMutex;
+    static std::vector<TSWorker::Task*> lowPriorityTaskQueue;
+    static std::vector<TSWorker::Task*> lowPriorityTaskToAdd;
+    static std::vector<TSWorker::Task*> lowPriorityTaskToRemove;
+    static unsigned int lowPrioMinTaskTime = 1000;
+    static std::atomic<bool> lowPrioCleaning(false);
 
 
     /**Low priority master task**/
@@ -161,7 +165,7 @@ namespace TSWorker{
 
     class LowPriotityMasterTask : public TSWorker::Task{
         public:
-            LowPriotityMasterTask() {
+            LowPriotityMasterTask() {/// add low priority mater task to low priority task queue before any other task
 
                 _taskPriority = LOW_PRIO;
                 _isUsedByThread = false;
@@ -172,11 +176,12 @@ namespace TSWorker{
 
             }
             ~LowPriotityMasterTask(){
+                /// when main function ends, destruction of this object will stop taskHandling and make taskHandler() function return 'false'
                 quitTaskHandling = true;
             }
         private:
 
-            static bool taskTimeout(const Task* task){
+            static bool taskTimeout(const Task* task){///when Task takes more than specified time it will be ingnored and taskhandling will go to next round without it.
 
                 if(lowPrioMinTaskTime == 0){
                     return true;
@@ -186,7 +191,7 @@ namespace TSWorker{
 
 
             void run(){
-
+                /// go through all Tasks and if all Tasks in high priority are executed and no more used by threads(ingnoring mater task)
                 for(uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex){
                     Task* currentTask = lowPriorityTaskQueue[taskIndex];
                     if((currentTask != this) &&  (taskTimeout(currentTask)) && (currentTask->_isAlreadyExecuted == false || currentTask->_isUsedByThread == true)){
@@ -201,14 +206,14 @@ namespace TSWorker{
                 std::cout<<"Cleaning low prio\n";
                 #endif // DEBUG_INFO
 
-                lowPrioCleaning = true;
+                lowPrioCleaning = true; ///temoraly stops Task handling in taskHandlers
 
 
 
                 for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex ){
 
                     Task* currentTask = lowPriorityTaskQueue[taskIndex];
-
+                    /// clear the Task that are not marked as 'ready to remove'
                     if(currentTask->_taskRemoveMode == NOACTION_MODE){
                         if(currentTask->_isUsedByThread == false || currentTask == this){
                             currentTask->_isAlreadyExecuted = false;
@@ -216,6 +221,7 @@ namespace TSWorker{
                     }
                     else{
                         lowPriorityTaskQueue.erase(lowPriorityTaskQueue.begin()+taskIndex);
+                        /// when task is marked as 'ready for delete'
                         if(currentTask->_taskRemoveMode == DELETE_MODE){
                             if(currentTask->_isDynamicallyAllocated == true){
                                 delete currentTask;
@@ -231,10 +237,11 @@ namespace TSWorker{
 
 
 
-                if(lowPrioAddMutex.try_lock()){
+                if(lowPrioAddMutex.try_lock()){/// try to lock when noone is adding Task at the moment
                     #ifdef DEBUG_INFO
                     std::cout<<"Added: ("<<(unsigned int)lowPriorityTaskToAdd.size()<<")\n";
                     #endif // DEBUG_INFO
+                    /// go through lowPriority 'add' queue and add Task here when no operations with lowPriorityTaskQueue are running
                     for ( uint32_t taskAddIndex = 0; taskAddIndex < lowPriorityTaskToAdd.size(); ++taskAddIndex ){
 
                         lowPriorityTaskQueue.push_back(lowPriorityTaskToAdd[taskAddIndex]);
@@ -249,7 +256,7 @@ namespace TSWorker{
             }
 
 
-    } _lowPrioMasterTask;
+    } static _lowPrioMasterTask;
 
 
 
@@ -274,9 +281,9 @@ namespace TSWorker{
     bool Task::removeDependency(const Task* dependency){
 
         Task* currentTask = this;
-
+        /// go trough dependencies forward-linked-list until dependency is found or _dependentTask of currentTask is equal to nullptr
         while(currentTask->_dependentTask != nullptr){
-
+            ///when dependency is found, remove it from forward-linked-list by setting _dependentTask of currentTask to dependency's _depedentTask.
             if(currentTask->_dependentTask == dependency){
                 currentTask->_dependentTask->_isExecutedByDependency = false;
                 currentTask->_dependentTask = currentTask->_dependentTask->_dependentTask;
@@ -305,6 +312,7 @@ namespace TSWorker{
 
         Task* previus = this;
         Task* current = previus->_dependentTask;
+        ///Set all _dependentTask to nullptr in dependecies which are in this chain
         while(current != nullptr){
             previus->_dependentTask = nullptr;
             current->_isExecutedByDependency = false;
@@ -326,7 +334,7 @@ namespace TSWorker{
     }
 
     void Task::subscribe(const TaskPriority taskPriority){
-
+        ///If task has been removed or added from it's creation, addition to Task queue will be valid otherwise it's not
         if(_taskRemoveMode == REMOVE_MODE){
             _taskPriority           = taskPriority;
             _isUsedByThread         = false;
@@ -353,11 +361,12 @@ namespace TSWorker{
     }
 
     void Task::remove(){
-
+        /// if no remove mode is set, set it to to mode REMOVE_MODE
         if(_taskRemoveMode == NOACTION_MODE){
 
             _taskRemoveMode = REMOVE_MODE;
         }
+        ///set flags for not executing and in case it is used in context of dependencies mark it to be removed from dependency execution
         _isAlreadyExecuted      = true;
         _isExecutedByDependency = false;
 
@@ -365,10 +374,11 @@ namespace TSWorker{
     }
 
     void Task::removeAndDelete(){
-
+        /// if no remove mode is set, set it to to mode DELETE_MODE
         if(_taskRemoveMode == NOACTION_MODE){
             _taskRemoveMode = DELETE_MODE;
         }
+        ///set flags for not executing and in case it is used in context of dependencies mark it to be removed and deleted from dependency execution
         _isAlreadyExecuted      = true;
         _isExecutedByDependency = false;
     }
@@ -442,11 +452,12 @@ namespace TSWorker{
 
 
     bool Task::_execute(){
+        ///mutex object that unlocks when function is calling its destructor
         std::unique_lock<std::mutex> uniqueTaskMutex(_taskMutex,std::defer_lock);
 
         if(uniqueTaskMutex.try_lock()){
-            /// reasons not to execute
-            if(_taskRemoveMode != Task::NOACTION_MODE || ( _taskPriority == HIGH_PRIO ? highPrioCleaning : lowPrioCleaning) || _isUsedByThread ||  _isAlreadyExecuted || !_isEnabled || _isExecutedByDependency){
+            /// reasons not to execute task
+            if(_taskRemoveMode != Task::NOACTION_MODE || ( _taskPriority == HIGH_PRIO ? highPrioCleaning : lowPrioCleaning) || _isUsedByThread ||  _isAlreadyExecuted || _isExecutedByDependency){
 
                 return false;
             }
@@ -455,7 +466,7 @@ namespace TSWorker{
             _isAlreadyExecuted  = true;
             _timeOfStart        = std::chrono::steady_clock::now();
 
-
+            /// dependency execution will check if _dependentTask is marked to remove or to delete otherwise execute it
             if(this->_dependentTask != nullptr){
                 if(this->_dependentTask->_isExecutedByDependency == false){
                     if(this->_dependentTask->_taskRemoveMode == DELETE_MODE){
@@ -472,8 +483,9 @@ namespace TSWorker{
                     _recursiveDependencyExecute(this->_dependentTask);
                 }
             }
-
-            run();
+            if(_isEnabled){
+                run();
+            }
 
             _isUsedByThread     = false;
 
@@ -496,6 +508,7 @@ namespace TSWorker{
 
 
     Task* spawnTaskFunction(TaskFunction taskFunction, Task::TaskPriority taskPriority){
+        /// add task function as function pointer inside class and create it as an object
         class functionTask : public Task{
 
             public:
@@ -534,12 +547,13 @@ namespace TSWorker{
 
 
     bool taskHandler(){
-
+        ///Eexecute all high priority tasks soon as possible
         for(uint32_t taskIndex = highPriorityTaskQueue.size(); highPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
 
             (void)highPriorityTaskQueue[taskIndex-1]->_execute();
         }
 
+        ///Execute all low priority tasks, one per taskHandler function execution
         for(uint32_t taskIndex = lowPriorityTaskQueue.size(); _lowPrioMasterTask._isUsedByThread == false && lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
 
             if(lowPriorityTaskQueue[taskIndex-1]->_execute() == true && lowPriorityTaskQueue[taskIndex-1] != &_lowPrioMasterTask){

@@ -421,15 +421,16 @@ namespace TSWorker{
 
 
             std::mutex                              _taskMutex;                 ///< ensures that task is only executed on one thread at the time
-            Task*                                   _dependentTask;             ///< pointer to dependency which will be executed befor this Task
+            Task*                                   _dependentTask;             ///< pointer to dependency which will be executed before this Task
             std::chrono::steady_clock::time_point   _timeOfStart;               ///< time point when executing of Task has started
             std::atomic<TaskRemoveMode>             _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
             std::atomic<bool>                       _isUsedByThread;            ///< is used to detect if Task is already executed by functions
             std::atomic<bool>                       _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
             std::atomic<bool>                       _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
             std::atomic<bool>                       _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
-            TaskPriority                            _taskPriority;              ///< is used to check if Task is high priority
             bool                                    _isDynamicallyAllocated;    ///< this prevents unintentional deletion of static or stack allocated objects
+            TaskPriority                            _taskPriority;              ///< is used to check if Task is high priority
+
 
     };
 
