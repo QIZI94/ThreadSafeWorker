@@ -31,6 +31,20 @@
 
 namespace TSWorker{
 
+    class SpinLock
+    {
+
+
+		public:
+			inline void lock()         noexcept {while(_aFlag.test_and_set(std::memory_order_acquire));                        }
+			//void lock_yield()   noexcept {while(_aFlag.test_and_set(std::memory_order_acquire)){this_thread::yield();}  }
+			inline void unlock()       noexcept {_aFlag.clear(std::memory_order_release);                                      }
+			inline bool try_lock()     noexcept {return !_aFlag.test_and_set(std::memory_order_acquire);                       }
+			inline bool is_locked()    const    {return (*(std::atomic<bool>*)(&_aFlag));                                       }
+
+        private:
+        std::atomic_flag _aFlag = ATOMIC_FLAG_INIT;
+    };
 
 
     class Task
@@ -420,9 +434,11 @@ namespace TSWorker{
 
 
 
-            std::mutex                              _taskMutex;                 ///< ensures that task is only executed on one thread at the time
+            //std::mutex                              _taskMutex;                 ///< ensures that task is only executed on one thread at the time
+
             Task*                                   _dependentTask;             ///< pointer to dependency which will be executed before this Task
             std::chrono::steady_clock::time_point   _timeOfStart;               ///< time point when executing of Task has started
+            SpinLock                                _taskMutex;
             std::atomic<TaskRemoveMode>             _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
             std::atomic<bool>                       _isUsedByThread;            ///< is used to detect if Task is already executed by functions
             std::atomic<bool>                       _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context

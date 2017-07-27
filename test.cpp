@@ -145,7 +145,7 @@ void threadFunction(){
 
 int main(){
 
-    std::cout<<"Sizeof Task: "<<sizeof(std::chrono::steady_clock::time_point)<<'\0';
+    std::cout<<"Sizeof Task: "<<sizeof(TSWorker::Task)<<'\0';
    std::cin.get();
     //test1* t1 = new test1;
 
@@ -201,11 +201,11 @@ int main(){
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
-            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
-            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
-            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
-            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
-            TSWorker::spawnTask<test2>(TSWorker::Task::HIGH_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::LOW_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::LOW_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::LOW_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::LOW_PRIO);
+            TSWorker::spawnTask<test2>(TSWorker::Task::LOW_PRIO);
 
             TSWorker::spawnTask<test3>(TSWorker::Task::HIGH_PRIO,5);
            // (new test2)->subscribe(TSWorker::Task::LOW_PRIO);

@@ -449,13 +449,31 @@ namespace TSWorker{
 
     }
 
+    template <class Locker>
+    class AutoUnlocker{
+        public:
+        AutoUnlocker(Locker& locker) : _locker(locker){}
 
+        Locker* operator -> (){
+            return &_locker;
+        }
+
+        ~AutoUnlocker(){
+            if(_locker.is_locked()){
+                _locker.unlock();
+            }
+
+        }
+        private:
+        Locker& _locker;
+    };
 
     bool Task::_execute(){
         ///mutex object that unlocks when function is calling its destructor
-        std::unique_lock<std::mutex> uniqueTaskMutex(_taskMutex,std::defer_lock);
+        //std::unique_lock<std::mutex> uniqueTaskMutex(_taskMutex,std::defer_lock);
+        AutoUnlocker<SpinLock> autoUnlockTaskMutex(_taskMutex);
 
-        if(uniqueTaskMutex.try_lock()){
+        if(autoUnlockTaskMutex->try_lock()){
             /// reasons not to execute task
             if(_taskRemoveMode != Task::NOACTION_MODE || ( _taskPriority == HIGH_PRIO ? highPrioCleaning : lowPrioCleaning) || _isUsedByThread ||  _isAlreadyExecuted || _isExecutedByDependency){
 
