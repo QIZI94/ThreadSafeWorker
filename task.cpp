@@ -483,12 +483,19 @@ namespace TSWorker{
                 }
             }
             if(_isEnabled){
+
                 run();
             }
+            else if(_dependentTask == nullptr){
 
+                _isUsedByThread     = false;
+                return false;
+
+            }
             _isUsedByThread     = false;
-
             return true;
+
+
         }
         return false;
     }

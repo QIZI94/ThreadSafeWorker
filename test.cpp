@@ -23,7 +23,7 @@ struct test1 : TSWorker::Task{
 struct test2 : TSWorker::Task{
 
     test2() {
-        subscribe(TSWorker::Task::HIGH_PRIO);
+       //subscribe(TSWorker::Task::HIGH_PRIO);
 
     }
     private:
