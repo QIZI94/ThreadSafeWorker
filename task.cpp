@@ -23,6 +23,7 @@
 #include <vector>
 #include <array>
 
+#include "spinlock.hpp"
 
 #include <inttypes.h>
 
@@ -31,7 +32,7 @@
 #define DEBUG_INFO
 #include <iostream>
 
-
+dsa::spinlock a;;
 
 namespace TSWorker{
 
@@ -39,7 +40,8 @@ namespace TSWorker{
 
 
     /**High priority handlers**/
-    static std::mutex highPrioAddMutex;
+    //static std::mutex
+    static dsa::spinlock highPrioAddMutex;
     static std::vector<TSWorker::Task*> highPriorityTaskQueue;
     static std::vector<TSWorker::Task*> highPriorityTaskToAdd;
     static std::vector<TSWorker::Task*> highPriorityTaskToRemove;
@@ -152,7 +154,7 @@ namespace TSWorker{
 
 
     /**Low priority handlers**/
-    static std::mutex lowPrioAddMutex;
+    static dsa::spinlock lowPrioAddMutex;
     static std::vector<TSWorker::Task*> lowPriorityTaskQueue;
     static std::vector<TSWorker::Task*> lowPriorityTaskToAdd;
     static std::vector<TSWorker::Task*> lowPriorityTaskToRemove;
