@@ -1,4 +1,5 @@
 
+
 /******************************  <Zlib>  **************************************
  * Copyright (c) 2017 Martin Baláž (QIZI94)
  *
@@ -22,557 +23,199 @@
 
 #include <vector>
 #include <array>
-
-#include "spinlock.hpp"
-
 #include <inttypes.h>
+#include <iostream>
+
 
 #include "task.h"
 
-#define DEBUG_INFO
-#include <iostream>
-
-dsa::spinlock a;;
 
 namespace TSWorker{
+    static std::vector<Task*> highPriorityTaskQueue;
+    static Spinlock highModifiyLock;
 
-    static std::atomic<bool> quitTaskHandling(false);
+    static std::vector<Task*> lowPriorityTaskQueue;
+    static Spinlock lowModifiyLock;
 
 
-    /**High priority handlers**/
-    //static std::mutex
-    static dsa::spinlock highPrioAddMutex;
-    static std::vector<TSWorker::Task*> highPriorityTaskQueue;
-    static std::vector<TSWorker::Task*> highPriorityTaskToAdd;
-    static std::vector<TSWorker::Task*> highPriorityTaskToRemove;
-    static unsigned int highPrioMinTaskTime = 1000;
-    static std::atomic<bool> highPrioCleaning(false);
-
-
-
-
-    /**High priority master task**/
-
-
-    class HighPriotityMasterTask : public TSWorker::Task{
-        public:
-            HighPriotityMasterTask() {/// add high priority mater task to high priority task queue before any other task
-                _taskPriority = TSWorker::Task::HIGH_PRIO;
-                _isUsedByThread = false;
-                _isAlreadyExecuted = false;
-                _isEnabled  = true;
-                _taskRemoveMode = NOACTION_MODE;
-                highPriorityTaskQueue.push_back(this);
-
-            }
-            ~HighPriotityMasterTask(){
-                /// when main function ends, destruction of this object will stop taskHandling and make taskHandler() function return 'false'
-                quitTaskHandling = true;
-            }
-        private:
-
-            static bool taskTimeout(const Task* task){///when Task takes more than specified time it will be ingnored and taskhandling will go to next round without it.
-                if(highPrioMinTaskTime == 0){
-                    return true;
-                }
-                return (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - task->_timeOfStart).count() < highPrioMinTaskTime);
-            }
-
-
-            void run(){
-                /// go through all Tasks and if all Tasks in high priority are executed and no more used by threads(ingnoring mater task)
-                for(uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex){
-
-                    Task* currentTask = highPriorityTaskQueue[taskIndex];
-                    if((currentTask != this) &&  (taskTimeout(currentTask)) && (currentTask->_isAlreadyExecuted == false || currentTask->_isUsedByThread == true)){
-                        executeAgain();
-
-                        return;
-                    }
-
-                }
-
-                #ifdef DEBUG_INFO
-                std::cout<<"Cleaning High prio\n";
-                #endif // DEBUG_INFO
-                highPrioCleaning = true; ///temoraly stops Task handling in taskHandlers
-
-
-
-                for ( uint32_t taskIndex = 0; taskIndex < highPriorityTaskQueue.size(); ++taskIndex ){
-
-                    Task* currentTask = highPriorityTaskQueue[taskIndex];
-                    /// clear the Task that are not marked as 'ready to remove'
-                    if(currentTask->_taskRemoveMode == NOACTION_MODE){
-                        if(currentTask->_isUsedByThread == false || currentTask == this){
-                            currentTask->_isAlreadyExecuted = false;
-                        }
-                    }
-                    else{
-                        highPriorityTaskQueue.erase(highPriorityTaskQueue.begin()+taskIndex);
-                        /// when task is marked as 'ready for delete'
-                        if(currentTask->_taskRemoveMode == DELETE_MODE){
-                            if(currentTask->_isDynamicallyAllocated == true){
-                                delete currentTask;
-                            }
-                            else{
-                                std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
-                            }
-                        }
-                        taskIndex--;
-                    }
-
-                }
-
-
-
-
-
-                if(highPrioAddMutex.try_lock()){/// try to lock when noone is adding Task at the moment
-                    #ifdef DEBUG_INFO
-                    std::cout<<"Added High: ("<<(unsigned int)highPriorityTaskToAdd.size()<<")\n";
-                    #endif // DEBUG_INFO
-                    /// go through highPriority 'add' queue and add Task here when no operations with highPriorityTaskQueue are running
-                    for ( uint32_t taskAddIndex = 0; taskAddIndex < highPriorityTaskToAdd.size(); ++taskAddIndex ){
-
-                        highPriorityTaskQueue.push_back(highPriorityTaskToAdd[taskAddIndex]);
-                    }
-                    highPriorityTaskToAdd.clear();
-
-                    highPrioAddMutex.unlock();
-                }
-
-                highPrioCleaning = false;
-
-            }
-
-
-    }static  _highPrioMasterTask;
-
-
-
-
-
-    /**Low priority handlers**/
-    static dsa::spinlock lowPrioAddMutex;
-    static std::vector<TSWorker::Task*> lowPriorityTaskQueue;
-    static std::vector<TSWorker::Task*> lowPriorityTaskToAdd;
-    static std::vector<TSWorker::Task*> lowPriorityTaskToRemove;
-    static unsigned int lowPrioMinTaskTime = 1000;
-    static std::atomic<bool> lowPrioCleaning(false);
-
-
-    /**Low priority master task**/
-
-
-    class LowPriotityMasterTask : public TSWorker::Task{
-        public:
-            LowPriotityMasterTask() {/// add low priority mater task to low priority task queue before any other task
-
-                _taskPriority = LOW_PRIO;
-                _isUsedByThread = false;
-                _isAlreadyExecuted = false;
-                _isEnabled  = true;
-                _taskRemoveMode = NOACTION_MODE;
-                lowPriorityTaskQueue.push_back(this);
-
-            }
-            ~LowPriotityMasterTask(){
-                /// when main function ends, destruction of this object will stop taskHandling and make taskHandler() function return 'false'
-                quitTaskHandling = true;
-            }
-        private:
-
-            static bool taskTimeout(const Task* task){///when Task takes more than specified time it will be ingnored and taskhandling will go to next round without it.
-
-                if(lowPrioMinTaskTime == 0){
-                    return true;
-                }
-                return (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - task->_timeOfStart).count() < lowPrioMinTaskTime);
-            }
-
-
-            void run(){
-                /// go through all Tasks and if all Tasks in high priority are executed and no more used by threads(ingnoring mater task)
-                for(uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex){
-                    Task* currentTask = lowPriorityTaskQueue[taskIndex];
-                    if((currentTask != this) &&  (taskTimeout(currentTask)) && (currentTask->_isAlreadyExecuted == false || currentTask->_isUsedByThread == true)){
-                        executeAgain();
-
-                        return;
-                    }
-
-                }
-
-                #ifdef DEBUG_INFO
-                std::cout<<"Cleaning low prio\n";
-                #endif // DEBUG_INFO
-
-                lowPrioCleaning = true; ///temoraly stops Task handling in taskHandlers
-
-
-
-                for ( uint32_t taskIndex = 0; taskIndex < lowPriorityTaskQueue.size(); ++taskIndex ){
-
-                    Task* currentTask = lowPriorityTaskQueue[taskIndex];
-                    /// clear the Task that are not marked as 'ready to remove'
-                    if(currentTask->_taskRemoveMode == NOACTION_MODE){
-                        if(currentTask->_isUsedByThread == false || currentTask == this){
-                            currentTask->_isAlreadyExecuted = false;
-                        }
-                    }
-                    else{
-                        lowPriorityTaskQueue.erase(lowPriorityTaskQueue.begin()+taskIndex);
-                        /// when task is marked as 'ready for delete'
-                        if(currentTask->_taskRemoveMode == DELETE_MODE){
-                            if(currentTask->_isDynamicallyAllocated == true){
-                                delete currentTask;
-                            }
-                            else{
-                                std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
-                            }
-                        }
-                        taskIndex--;
-                    }
-
-                }
-
-
-
-                if(lowPrioAddMutex.try_lock()){/// try to lock when noone is adding Task at the moment
-                    #ifdef DEBUG_INFO
-                    std::cout<<"Added: ("<<(unsigned int)lowPriorityTaskToAdd.size()<<")\n";
-                    #endif // DEBUG_INFO
-                    /// go through lowPriority 'add' queue and add Task here when no operations with lowPriorityTaskQueue are running
-                    for ( uint32_t taskAddIndex = 0; taskAddIndex < lowPriorityTaskToAdd.size(); ++taskAddIndex ){
-
-                        lowPriorityTaskQueue.push_back(lowPriorityTaskToAdd[taskAddIndex]);
-                    }
-                    lowPriorityTaskToAdd.clear();
-
-                    lowPrioAddMutex.unlock();
-                }
-
-                lowPrioCleaning = false;
-
-            }
-
-
-    } static _lowPrioMasterTask;
-
-
-
-
-
-
-
-
-
-
-    /** Task functions implemetation **/
     Task::Task(){
-
-        _dependentTask          = nullptr;
-        _isExecutedByDependency = false;
-        _isEnabled              = true;
-        _isDynamicallyAllocated = false;
-        _taskRemoveMode         = REMOVE_MODE;
-
-    }
-
-    bool Task::removeDependency(const Task* dependency){
-
-        Task* currentTask = this;
-        /// go trough dependencies forward-linked-list until dependency is found or _dependentTask of currentTask is equal to nullptr
-        while(currentTask->_dependentTask != nullptr){
-            ///when dependency is found, remove it from forward-linked-list by setting _dependentTask of currentTask to dependency's _depedentTask.
-            if(currentTask->_dependentTask == dependency){
-                currentTask->_dependentTask->_isExecutedByDependency = false;
-                currentTask->_dependentTask = currentTask->_dependentTask->_dependentTask;
-                return true;
-
-            }
-
-            currentTask = currentTask->_dependentTask;
-        }
-
-        return false;
-
-    }
-
-    bool Task::deleteDependency(const Task* dependency){
-        bool dependencyRemoved = removeDependency(dependency);
-
-        if(dependencyRemoved == true && dependency->_isDynamicallyAllocated == true){
-            delete dependency;
-        }
-
-        return dependencyRemoved;
-    }
-
-    void Task::breakDependency(){
-
-        Task* previus = this;
-        Task* current = previus->_dependentTask;
-        ///Set all _dependentTask to nullptr in dependecies which are in this chain
-        while(current != nullptr){
-            previus->_dependentTask = nullptr;
-            current->_isExecutedByDependency = false;
-
-            previus = current;
-            current = previus->_dependentTask;
-
-        }
-
-    }
-
-
-
-    void Task::enable(){
         _isEnabled = true;
     }
-    void Task::disable(){
-        _isEnabled = false;
+
+    Task::~Task(){
+
     }
+
 
     void Task::subscribe(const TaskPriority taskPriority){
-        ///If task has been removed or added from it's creation, addition to Task queue will be valid otherwise it's not
-        if(_taskRemoveMode == REMOVE_MODE){
-            _taskPriority           = taskPriority;
-            _isUsedByThread         = false;
-            _isAlreadyExecuted      = false;
-            _isEnabled              = true;
-            _isExecutedByDependency = false;
-            _taskRemoveMode         = NOACTION_MODE;
+        switch(taskPriority){
 
+            case HIGH_PRIO:
+                highModifiyLock.lock();
+                highPriorityTaskQueue.push_back(this);
+                highModifiyLock.unlock();
+            break;
 
+            case LOW_PRIO:
+                lowModifiyLock.lock();
+                lowPriorityTaskQueue.push_back(this);
+                lowModifiyLock.unlock();
+            break;
 
-            if(taskPriority == HIGH_PRIO){
-
-                highPrioAddMutex.lock();
-                highPriorityTaskToAdd.push_back(this);
-                highPrioAddMutex.unlock();
-            }
-            else {
-
-                lowPrioAddMutex.lock();
-                lowPriorityTaskToAdd.push_back(this);
-                lowPrioAddMutex.unlock();
-            }
-        }
-    }
-
-    void Task::remove(){
-        /// if no remove mode is set, set it to to mode REMOVE_MODE
-        if(_taskRemoveMode == NOACTION_MODE){
-
-            _taskRemoveMode = REMOVE_MODE;
-        }
-        ///set flags for not executing and in case it is used in context of dependencies mark it to be removed from dependency execution
-        _isAlreadyExecuted      = true;
-        _isExecutedByDependency = false;
-
-
-    }
-
-    void Task::removeAndDelete(){
-        /// if no remove mode is set, set it to to mode DELETE_MODE
-        if(_taskRemoveMode == NOACTION_MODE){
-            _taskRemoveMode = DELETE_MODE;
-        }
-        ///set flags for not executing and in case it is used in context of dependencies mark it to be removed and deleted from dependency execution
-        _isAlreadyExecuted      = true;
-        _isExecutedByDependency = false;
-    }
-
-    void Task::executeAgain(){
-        _isAlreadyExecuted = false;
-    }
-
-    void Task::setAsDynamicallyAllocated(){
-        _isDynamicallyAllocated = true;
-    }
-
-    Task* Task::getDependentTask() const{
-        return _dependentTask;
-    }
-
-
-    bool Task::isEnabled() const{
-        return _isEnabled;
-    }
-
-    bool Task::isSubscribed() const{
-        return (_taskRemoveMode == NOACTION_MODE);
-    }
-
-    bool Task::isDependency() const{
-        return _isExecutedByDependency;
-    }
-
-    bool Task::isDynamicallyAllocated() const{
-        return _isDynamicallyAllocated;
-    }
-
-
-    Task::~Task()
-    {
-        if(_taskRemoveMode != DELETE_MODE && _isDynamicallyAllocated == true){/// if true master Task will handle deletion from main Task queue
-            remove(); /// attempt to prevent segmentation fault, if cleaning process happens to be fast and remove this Task from execution queue.
-            std::cerr<<"Warning: deletion of Task detected outside of master Task.\n";
-        }
-    }
-
-    void Task::_recursiveDependencyExecute(Task* task){
-
-        if(task->_dependentTask != nullptr){
-
-            if(task->_dependentTask->_isExecutedByDependency == false){
-                    if(this->_dependentTask->_taskRemoveMode == DELETE_MODE){
-                        if(this->_dependentTask->_isDynamicallyAllocated == true){
-                            delete this->_dependentTask;
-                        }
-                        else{
-                            std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
-                        }
-                    }
-                    task->_dependentTask = nullptr;
-            }
-            else {
-
-                _recursiveDependencyExecute(task->_dependentTask);
-
-            }
-        }
-
-        if(task->_isEnabled){
-            task->run();
         }
 
     }
 
-    bool Task::_execute(){
-        std::unique_lock<std::mutex> uniqueTaskMutex(_taskMutex,std::defer_lock);
+    void Task::_execute(){
+        if(_taskLock.try_lock()){
+
+            run();
+            _taskLock.unlock();
+        }
+    }
+
+    void Task::handle(){
+        static thread_local size_t lowPrio = 0;
+        static thread_local std::vector<Task*> highPrioTasks;
+        static thread_local std::vector<Task*> lowPrioTasks;
 
 
-        if(uniqueTaskMutex.try_lock()){
-            /// reasons not to execute task
-            if(_taskRemoveMode != Task::NOACTION_MODE || ( _taskPriority == HIGH_PRIO ? highPrioCleaning : lowPrioCleaning)
-            || _isUsedByThread ||  _isAlreadyExecuted || _isExecutedByDependency){
+        if(!highPriorityTaskQueue.empty()){
 
-                return false;
-            }
+            if(highPrioTasks.size() != highPriorityTaskQueue.size()
+            || highPrioTasks.back() != highPriorityTaskQueue.back()){
 
-            _isUsedByThread     = true;
-            _isAlreadyExecuted  = true;
-            _timeOfStart        = std::chrono::steady_clock::now();
+                if(highModifiyLock.try_lock()){
 
-            /// dependency execution will check if _dependentTask is marked to remove or to delete otherwise execute it
-            if(this->_dependentTask != nullptr){
-                if(this->_dependentTask->_isExecutedByDependency == false){
-                    if(this->_dependentTask->_taskRemoveMode == DELETE_MODE){
-                        if(this->_dependentTask->_isDynamicallyAllocated == true){
-                            delete this->_dependentTask;
-                        }
-                        else{
-                            std::cerr<<"Warning: attempt to deleted a static or stack allocated object(was prevented).\n";
-                        }
-                    }
-                    this->_dependentTask = nullptr;
-                }
-                else {
-                    _recursiveDependencyExecute(this->_dependentTask);
+                    highPrioTasks = highPriorityTaskQueue;
+                    highModifiyLock.unlock();
                 }
             }
-            if(_isEnabled){
-
-                run();
-            }
-            else if(_dependentTask == nullptr){
-
-                _isUsedByThread     = false;
-                return false;
-
-            }
-            _isUsedByThread     = false;
-            return true;
 
 
-        }
-        return false;
-    }
+            for(Task* task : highPrioTasks){
 
-
-
-    void setHighPriorityTaskTimeOut(const unsigned int minTaskTime){
-
-        lowPrioMinTaskTime = minTaskTime;
-    }
-
-    void setLowPriorityTaskTimeOut(const unsigned int minTaskTime){
-
-        lowPrioMinTaskTime = minTaskTime;
-    }
-
-
-    Task* spawnTaskFunction(TaskFunction taskFunction, Task::TaskPriority taskPriority){
-        /// add task function as function pointer inside class and create it as an object
-        class functionTask : public Task{
-
-            public:
-            functionTask(TaskFunction tFunction){
-                this->tFunction = tFunction;
-            }
-
-            private:
-            void run(){
-                tFunction(this);
-            }
-
-            TaskFunction tFunction;
-        };
-
-        Task* newTask = new functionTask(taskFunction);
-        newTask->setAsDynamicallyAllocated();
-        newTask->subscribe(taskPriority);
-        return newTask;
-
-    }
-
-    void enableTaskHandling(const bool enableTaskHandler){
-
-        quitTaskHandling = !enableTaskHandler;
-    }
-
-    void disableTaskHandling(){
-
-        enableTaskHandling(false);
-    }
-
-    bool isTaskHandlingEnabled(){
-        return !quitTaskHandling;
-    }
-
-
-    bool taskHandler(){
-        ///Eexecute all high priority tasks soon as possible
-        for(uint32_t taskIndex = highPriorityTaskQueue.size(); highPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
-
-            (void)highPriorityTaskQueue[taskIndex-1]->_execute();
-        }
-
-        ///Execute all low priority tasks, one per taskHandler function execution
-        for(uint32_t taskIndex = lowPriorityTaskQueue.size(); _lowPrioMasterTask._isUsedByThread == false && lowPrioCleaning == false && quitTaskHandling == false && taskIndex > 0; --taskIndex){
-
-            if(lowPriorityTaskQueue[taskIndex-1]->_execute() == true && lowPriorityTaskQueue[taskIndex-1] != &_lowPrioMasterTask){
-                break;
+                task->run();
             }
 
         }
 
-        return !quitTaskHandling;
+
+        if(!lowPriorityTaskQueue.empty()){
+
+            if(lowPrio >= lowPrioTasks.size()){
+
+                if(lowPrioTasks.size() != lowPriorityTaskQueue.size()
+                || lowPrioTasks.back() != lowPriorityTaskQueue.back()){
+
+                    if(lowModifiyLock.try_lock()){
+                        lowPrioTasks = lowPriorityTaskQueue;
+                        lowModifiyLock.unlock();
+                    }
+                }
+                lowPrio = 0;
+            }
+
+
+            lowPrioTasks[lowPrio]->run();
+            lowPrio++;
+        }
+
+
+
+
     }
 
 
+}
 
-}//namespace TSWorker
+#include <thread>
+#include <algorithm>
+struct First : public TSWorker::Task{
+
+    void run(){
+        std::cout<<"1. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+    }
+
+};
+
+struct Second : public TSWorker::Task{
+
+    void run(){
+
+
+        std::cout<<"low2. task("<<this<<")  - Thread: "<<std::dec <<std::this_thread::get_id()<<'\n';
+    }
+
+};
+
+struct Third : public TSWorker::Task{
+
+    void run(){
+        std::cout<<"3. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+    }
+
+};
+
+
+struct Fourh : public TSWorker::Task{
+
+    void run(){
+        std::cout<<"4. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+    }
+
+};
+
+
+struct Fifth : public TSWorker::Task{
+
+    void run(){
+        std::cout<<"low5. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+    }
+
+};
+
+
+
+int main(){
+
+    auto tf = [](){
+
+        while(1){
+            TSWorker::Task::handle();
+        }
+    };
+
+
+
+    First f;
+    f.subscribe(TSWorker::Task::HIGH_PRIO);
+    Third f2;
+    f2.subscribe(TSWorker::Task::HIGH_PRIO);
+    Fourh f3;
+    f3.subscribe(TSWorker::Task::HIGH_PRIO);
+   /* Fourh f4;
+    f3.subscribe(TSWorker::Task::HIGH_PRIO);*/
+
+    Second s;
+    s.subscribe(TSWorker::Task::LOW_PRIO);
+    Fifth s2;
+    s2.subscribe(TSWorker::Task::LOW_PRIO);
+
+    std::thread th1(tf);
+    std::thread th2(tf);
+    std::thread th3(tf);
+    while(1){
+        TSWorker::Task::handle();
+    }
+
+
+}

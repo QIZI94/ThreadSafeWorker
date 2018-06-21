@@ -25,6 +25,7 @@
 #include <ctime>
 #include <mutex>
 #include <iostream>
+#include "spinlock.hpp"
 
 #define TASK_FUNCTION(funcname) void funcname(TSWorker::Task* thisTask)
 #define TASK_LAMBDA(capture)    [capture](TSWorker::Task* thisTask)
@@ -35,8 +36,7 @@ namespace TSWorker{
     class Task
     {
         friend bool taskHandler();
-        friend class HighPriotityMasterTask;
-        friend class LowPriotityMasterTask;
+
 
         public:
             enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class enumeration for Task priority
@@ -73,20 +73,6 @@ namespace TSWorker{
             void addDependency(Dependency... dependecies){
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
-                Task* currentTask = this;
-                while(currentTask->_dependentTask != nullptr){
-                    currentTask = currentTask->_dependentTask;
-                }
-
-                for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); ++taskDependencyIndex){
-                    if(deps[taskDependencyIndex]->_isExecutedByDependency == false && this != deps[taskDependencyIndex]){
-                        currentTask->_dependentTask                             = deps[taskDependencyIndex];
-                        currentTask->_dependentTask->remove();
-                        currentTask->_dependentTask->_isExecutedByDependency    = true;
-                        currentTask                                             = currentTask->_dependentTask;
-
-                    }
-                }
 
             }
 
@@ -116,26 +102,7 @@ namespace TSWorker{
 
                 std::array<Task*, sizeof...(Dependency)> deps = {{dependecies ...}};
 
-                bool isNewTaskAdded = false;
-                Task* currentTask = this;
-                Task* originalDependentTask = this->_dependentTask;
 
-
-                for(uint32_t taskDependencyIndex = 0; taskDependencyIndex < deps.size(); ++taskDependencyIndex){
-                    if(deps[taskDependencyIndex]->_isExecutedByDependency == false && this != deps[taskDependencyIndex]){
-                        currentTask->_dependentTask                             = deps[taskDependencyIndex];
-                        currentTask->_dependentTask->remove();
-                        currentTask->_dependentTask->_isExecutedByDependency    = true;
-                        isNewTaskAdded = true;
-                        currentTask                                             = currentTask->_dependentTask;
-                    }
-                }
-                if(isNewTaskAdded == true){
-                    while(currentTask->_dependentTask != nullptr){
-                        currentTask = currentTask->_dependentTask;
-                    }
-                    currentTask->_dependentTask = originalDependentTask;
-                }
 
             }
 
@@ -153,7 +120,7 @@ namespace TSWorker{
             * @see breakDependency()
             *
             ***********************************************************/
-            bool removeDependency(const Task* dependency);
+           // bool removeDependency(const Task* dependency);
 
 
             /*****************************************************//**
@@ -169,7 +136,7 @@ namespace TSWorker{
             * @see breakDependency()
             *
             ***********************************************************/
-            bool deleteDependency(const Task* dependency);
+         //   bool deleteDependency(const Task* dependency);
 
 
 
@@ -185,7 +152,7 @@ namespace TSWorker{
             * @see breakDependency()
             *
             ***********************************************************/
-            void breakDependency();
+            //void breakDependency();
 
 
 
@@ -195,7 +162,7 @@ namespace TSWorker{
             * @see subscribe()
             *
             ***********************************************************/
-            void enable();
+           //void enable();
 
 
 
@@ -212,7 +179,7 @@ namespace TSWorker{
             * @see removeAndDelete()
             *
             ***********************************************************/
-            void disable();
+            //void disable();
 
 
 
@@ -244,7 +211,7 @@ namespace TSWorker{
             * @see removeAndDelete()
             *
             ***********************************************************/
-            void remove();
+            //void remove();
 
 
 
@@ -256,7 +223,7 @@ namespace TSWorker{
             * @see remove()
             *
             ***********************************************************/
-            void removeAndDelete();
+           // void removeAndDelete();
 
 
 
@@ -268,7 +235,7 @@ namespace TSWorker{
             * @see isDynamicallyAllocated()
             *
             ***********************************************************/
-            void setAsDynamicallyAllocated();
+            //void setAsDynamicallyAllocated();
 
             /*****************************************************//**
             * This function will return the pointer to next dependency.
@@ -281,7 +248,7 @@ namespace TSWorker{
             * @see breakDependency()
             *
             ***********************************************************/
-            Task* getDependentTask() const;
+            //Task* getDependentTask() const;
 
 
             /*****************************************************//**
@@ -297,7 +264,7 @@ namespace TSWorker{
             * @see disable()
             *
             ***********************************************************/
-            bool isEnabled() const;
+            //bool isEnabled() const;
 
 
 
@@ -314,7 +281,7 @@ namespace TSWorker{
             * @see disable()
             *
             ***********************************************************/
-            bool isExecuted() const;
+            //bool isExecuted() const;
 
 
 
@@ -326,7 +293,7 @@ namespace TSWorker{
             *  actively executed tasks, otherwise returns false.
             *
             ***********************************************************/
-            bool isSubscribed() const;
+            //bool isSubscribed() const;
 
 
 
@@ -338,7 +305,7 @@ namespace TSWorker{
             *  otherwise returns false.
             *
             ***********************************************************/
-            bool isDependency() const;
+            //bool isDependency() const;
 
 
             /*****************************************************//**
@@ -351,7 +318,8 @@ namespace TSWorker{
             * @see setAsDynamicallyAllocated()
             *
             ***********************************************************/
-            bool isDynamicallyAllocated() const;
+            //bool isDynamicallyAllocated() const;
+
 
 
 
@@ -362,6 +330,19 @@ namespace TSWorker{
             *
             ***********************************************************/
             virtual ~Task();
+
+
+            /*****************************************************//**
+            * This function will execute all Tasks with all priorities.
+            *
+            * @return true when process is running otherwise false.
+            *
+            * @note Tasks will be executed by reverse order(because push_back will add functions at end of vector)
+            *
+            * @see Task
+            *
+            ***********************************************************/
+            static void handle();
 
         protected:
             /*****************************************************//**
@@ -404,7 +385,7 @@ namespace TSWorker{
             * @see run()
             *
             ***********************************************************/
-            bool _execute();
+            void _execute();
 
 
             /*****************************************************//**
@@ -415,56 +396,20 @@ namespace TSWorker{
             *  after all its dependencies were also executed.
             *
             ***********************************************************/
-            void _recursiveDependencyExecute(Task* task);
+           // void _recursiveDependencyExecute(Task* task);
 
 
 
-            std::mutex                              _taskMutex;                 ///< ensures that task is only executed on one thread at the time
+            Spinlock            _taskLock;                  ///< ensures that task is only executed on one thread at the time
 
-            Task*                                   _dependentTask;             ///< pointer to dependency which will be executed before this Task
-            std::chrono::steady_clock::time_point   _timeOfStart;               ///< time point when executing of Task has started
-            std::atomic<TaskRemoveMode>             _taskRemoveMode;            ///< is used to trigger deleting in 'MasterTask'*/
-            std::atomic<bool>                       _isUsedByThread;            ///< is used to detect if Task is already executed by functions
-            std::atomic<bool>                       _isAlreadyExecuted;         ///< is used to check if Task has been executed in this round/context
-            std::atomic<bool>                       _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
-            std::atomic<bool>                       _isExecutedByDependency;    ///< is used to ignore such Task because it will be executed by other Task
-            bool                                    _isDynamicallyAllocated;    ///< this prevents unintentional deletion of static or stack allocated objects
-            TaskPriority                            _taskPriority;              ///< is used to check if Task is high priority
+            Task*               _dependentTask;             ///< pointer to dependency which will be executed before this Task
+            std::atomic_bool    _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
+
+            bool                _isDynamicallyAllocated;    ///< this prevents unintentional deletion of static or stack allocated objects
+            TaskPriority        _taskPriority;              ///< is used to check if Task is high priority
 
 
     };
-
-
-    /*****************************************************//**
-    * This function will set minimal time that high priority cleaning procedure
-    *  will wait until task it will be ignored, so the cleaning process can start a new round.
-    *
-    * @note When setting it to '0' there will no ignoring so when one task will longer than
-    *  other tasks to complete whole round cleaning will wait endlessly for task to complete.
-    *  (this can be tested by putting while(true); in run function of subscribed task)
-    *
-    * @see setHighPriorityTaskTimeOut()
-    * @see Task
-    *
-    ***********************************************************/
-    void setHighPriorityTaskTimeOut(const unsigned int minTaskTime);
-
-
-
-    /*****************************************************//**
-    * This function will set minimal time that low priority cleaning procedure
-    *  will wait until task it will be ignored, so the cleaning process can start a new round.
-    *
-    * @note When setting it to '0' there will no ignoring so when one task will longer than
-    *  other tasks to complete whole round cleaning will wait endlessly for task to complete.
-    *  (this can be tested by putting while(true); in run function of subscribed task)
-    *
-    * @see setHighPriorityTaskTimeOut()
-    * @see Task
-    *
-    ***********************************************************/
-    void setLowPriorityTaskTimeOut(const unsigned int minTaskTime);
-
 
 
 
@@ -486,10 +431,10 @@ namespace TSWorker{
     *
     ***********************************************************/
     Task* spawnTask(Task::TaskPriority taskPriority = Task::HIGH_PRIO, ClassParam&& ... taskClassArgs){
-        Task* newTask = new taskClass(taskClassArgs ...);
+       /* Task* newTask = new taskClass(taskClassArgs ...);
         newTask->setAsDynamicallyAllocated();
         newTask->subscribe(taskPriority);
-        return newTask;
+        return newTask;*/
     }
 
 
@@ -545,17 +490,6 @@ namespace TSWorker{
 
 
 
-    /*****************************************************//**
-    * This function will execute all Tasks with all priorities.
-    *
-    * @return true when process is running otherwise false.
-    *
-    * @note Tasks will be executed by reverse order(because push_back will add functions at end of vector)
-    *
-    * @see Task
-    *
-    ***********************************************************/
-    bool taskHandler();
 }
 
 #endif // TASK_H
