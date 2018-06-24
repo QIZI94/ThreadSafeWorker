@@ -25,16 +25,83 @@
 #include <array>
 #include <inttypes.h>
 #include <iostream>
-
+#include <memory>
+#include <functional>
+#include <chrono>
 
 #include "task.h"
 
 
+#include <stdio.h>
+
 namespace TSWorker{
-    static std::vector<Task*> highPriorityTaskQueue;
+
+    class task_ptr{
+
+        public:
+
+        task_ptr(Task* ptr){
+            taskType.first = ptr;
+        }
+        task_ptr(std::shared_ptr<Task>& s_ptr){
+            taskType.second = s_ptr;
+            taskType.first = nullptr;
+        }
+
+        Task* get(){
+            if(taskType.first != nullptr){
+                return taskType.first;
+            }
+            else{
+                return taskType.second.get();
+            }
+        }
+
+        Task* operator->(){
+            if(taskType.first != nullptr){
+                return taskType.first;
+            }
+            else{
+                return taskType.second.get();
+            }
+        }
+        Task& operator *(){
+            if(taskType.first != nullptr){
+                return *taskType.first;
+            }
+            else{
+                return *taskType.second.get();
+            }
+        }
+        bool operator == (const task_ptr& tp){
+
+            if(taskType.first != nullptr){
+                return (taskType.first == tp.taskType.first);
+            }
+            else{
+                return (taskType.second == tp.taskType.second);
+            }
+
+        }
+        bool operator != (const task_ptr& tp){
+            if(taskType.first != nullptr){
+                return (taskType.first != tp.taskType.first);
+            }
+            else{
+                return (taskType.second != tp.taskType.second);
+            }
+        }
+        private:
+
+        std::pair<Task*, std::shared_ptr<Task> > taskType;
+
+    };
+
+
+    static std::vector<std::shared_ptr<Task>> highPriorityTaskQueue;
     static Spinlock highModifiyLock;
 
-    static std::vector<Task*> lowPriorityTaskQueue;
+    static std::vector<std::shared_ptr<Task>> lowPriorityTaskQueue;
     static Spinlock lowModifiyLock;
 
 
@@ -47,37 +114,32 @@ namespace TSWorker{
     }
 
 
-    void Task::subscribe(const TaskPriority taskPriority){
-        switch(taskPriority){
 
-            case HIGH_PRIO:
-                highModifiyLock.lock();
-                highPriorityTaskQueue.push_back(this);
-                highModifiyLock.unlock();
-            break;
-
-            case LOW_PRIO:
-                lowModifiyLock.lock();
-                lowPriorityTaskQueue.push_back(this);
-                lowModifiyLock.unlock();
-            break;
-
-        }
-
-    }
 
     void Task::_execute(){
-        if(_taskLock.try_lock()){
+        if(_isEnabled == true){
+            if(_taskLock.try_lock()){
 
-            run();
-            _taskLock.unlock();
+                run();
+                _taskLock.unlock();
+            }
+
         }
+    }
+
+
+    void Task::enable(){
+        _isEnabled = true;
+    }
+
+    void Task::disable(){
+        _isEnabled = false;
     }
 
     void Task::handle(){
         static thread_local size_t lowPrio = 0;
-        static thread_local std::vector<Task*> highPrioTasks;
-        static thread_local std::vector<Task*> lowPrioTasks;
+        static thread_local std::vector<std::shared_ptr<Task>> highPrioTasks;
+        static thread_local std::vector<std::shared_ptr<Task>> lowPrioTasks;
 
 
         if(!highPriorityTaskQueue.empty()){
@@ -93,9 +155,9 @@ namespace TSWorker{
             }
 
 
-            for(Task* task : highPrioTasks){
+            for(auto& task : highPrioTasks){
 
-                task->run();
+                task->_execute();
             }
 
         }
@@ -117,7 +179,7 @@ namespace TSWorker{
             }
 
 
-            lowPrioTasks[lowPrio]->run();
+            lowPrioTasks[lowPrio]->_execute();
             lowPrio++;
         }
 
@@ -125,9 +187,106 @@ namespace TSWorker{
 
 
     }
+//template <class T>
+    void Task::subscribe(const Priority taskPriority){
+        _taskPriority = taskPriority;
+        switch(taskPriority){
 
+            case Priority::High:
+                highModifiyLock.lock();
+                highPriorityTaskQueue.push_back(std::shared_ptr<Task>(this));
+                highModifiyLock.unlock();
+            break;
+
+            case Priority::Low:
+                lowModifiyLock.lock();
+                lowPriorityTaskQueue.push_back(std::shared_ptr<Task>(this));
+                lowModifiyLock.unlock();
+            break;
+
+        }
+
+    }
+
+
+
+
+
+
+
+    void Task::remove(){
+
+        /*struct AutoUnlocker{
+            Spinlock& spinlock;
+            AutoUnlocker(Spinlock& spin) : spinlock(spin){spinlock.lock();}
+            ~AutoUnlocker(){spinlock.unlock();}
+
+        } autoUnlock(highModifiyLock);*/
+        highModifiyLock.lock();
+        for(auto it = highPriorityTaskQueue.begin(); it != highPriorityTaskQueue.end(); ++it){
+            if(it->get() == this){
+                it->get()->disable();
+                highPriorityTaskQueue.erase(it);
+                break;
+            }
+        }
+/*
+        for(int i = 0; i < highPriorityTaskQueue.size(); i++){
+            if(highPriorityTaskQueue[i].get() == this){
+
+                highPriorityTaskQueue[i].get()->disable();
+                highPriorityTaskQueue.erase(highPriorityTaskQueue.begin() + i);
+            }
+        }*/
+
+     highModifiyLock.unlock();
+    }
+
+
+
+
+    std::shared_ptr<Task> createTask(std::function<void(Task*)> taskFunction, Priority taskPriority = Priority::High){
+        struct FunctionTask : public Task{
+            std::function<void(Task*)> func;
+
+            FunctionTask(std::function<void(Task*)> taskFunc) : func(taskFunc){}
+            void run(){
+                func(this);
+            }
+
+            ~FunctionTask(){
+
+                std::cout<<"Dinammically allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
+
+                //exit(1);
+            }
+
+        };
+
+        auto newTask = std::make_shared<FunctionTask>(taskFunction);
+        switch(taskPriority){
+
+            case Priority::High:
+                highModifiyLock.lock();
+                highPriorityTaskQueue.push_back(newTask);
+                highModifiyLock.unlock();
+            break;
+
+            case Priority::Low:
+                lowModifiyLock.lock();
+                lowPriorityTaskQueue.push_back(newTask);
+                lowModifiyLock.unlock();
+            break;
+
+        }
+
+        return newTask;
+
+    }
 
 }
+
+
 
 #include <thread>
 #include <algorithm>
@@ -197,18 +356,26 @@ int main(){
 
 
     First f;
-    f.subscribe(TSWorker::Task::HIGH_PRIO);
+    f.subscribe(TSWorker::Priority::High);
     Third f2;
-    f2.subscribe(TSWorker::Task::HIGH_PRIO);
+    f2.subscribe(TSWorker::Priority::High);
     Fourh f3;
-    f3.subscribe(TSWorker::Task::HIGH_PRIO);
+    f3.subscribe(TSWorker::Priority::High);
    /* Fourh f4;
     f3.subscribe(TSWorker::Task::HIGH_PRIO);*/
 
     Second s;
-    s.subscribe(TSWorker::Task::LOW_PRIO);
+    s.subscribe(TSWorker::Priority::Low);
     Fifth s2;
-    s2.subscribe(TSWorker::Task::LOW_PRIO);
+    s2.subscribe(TSWorker::Priority::Low);
+
+    TSWorker::createTask(
+        [](TSWorker::Task* thisTask){
+            std::cout<<"I am dinamically allocated task and you are not :D :D xD\n";
+            //thisTask->remove();
+        },
+        TSWorker::Priority::High
+    );
 
     std::thread th1(tf);
     std::thread th2(tf);

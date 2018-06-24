@@ -26,20 +26,19 @@
 #include <mutex>
 #include <iostream>
 #include "spinlock.hpp"
-
+#include <memory>
 #define TASK_FUNCTION(funcname) void funcname(TSWorker::Task* thisTask)
 #define TASK_LAMBDA(capture)    [capture](TSWorker::Task* thisTask)
 
 namespace TSWorker{
 
+    enum class Priority{Low = 0, High = 1}; ///< Class enumeration for Task priority
 
     class Task
     {
-        friend bool taskHandler();
 
 
         public:
-            enum TaskPriority{LOW_PRIO = 0, HIGH_PRIO = 1}; ///< Class enumeration for Task priority
 
 
 
@@ -162,7 +161,7 @@ namespace TSWorker{
             * @see subscribe()
             *
             ***********************************************************/
-           //void enable();
+           void enable();
 
 
 
@@ -179,7 +178,7 @@ namespace TSWorker{
             * @see removeAndDelete()
             *
             ***********************************************************/
-            //void disable();
+            void disable();
 
 
 
@@ -195,7 +194,7 @@ namespace TSWorker{
             * @see removeAndDelete()
             *
             ***********************************************************/
-            void subscribe(const TaskPriority taskPriority);
+            void subscribe(const Priority taskPriority);
 
 
 
@@ -211,7 +210,7 @@ namespace TSWorker{
             * @see removeAndDelete()
             *
             ***********************************************************/
-            //void remove();
+            void remove();
 
 
 
@@ -344,6 +343,11 @@ namespace TSWorker{
             ***********************************************************/
             static void handle();
 
+
+            static std::shared_ptr<Task> create(std::function<void(Task*)> taskFunction, Priority taskPriority);
+            static void assign(std::shared_ptr<Task> newTask, Priority taskPriority);
+            static void assign(Task& newTask, Priority taskPriority);
+
         protected:
             /*****************************************************//**
             * This function be used to handle Task and
@@ -402,18 +406,18 @@ namespace TSWorker{
 
             Spinlock            _taskLock;                  ///< ensures that task is only executed on one thread at the time
 
-            Task*               _dependentTask;             ///< pointer to dependency which will be executed before this Task
+            //std::vector<std::shared_ptr>///< pointer to dependency which will be executed before this Task
             std::atomic_bool    _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
 
             bool                _isDynamicallyAllocated;    ///< this prevents unintentional deletion of static or stack allocated objects
-            TaskPriority        _taskPriority;              ///< is used to check if Task is high priority
+            Priority            _taskPriority;              ///< is used to check if Task is high priority
 
 
     };
 
 
 
-    template <class taskClass, typename ...ClassParam>
+   // template <class taskClass, typename ...ClassParam>
     /*****************************************************//**
     * This function will spawn a Task with selected priority
     *  and returns the address of newly created Task.
@@ -430,12 +434,12 @@ namespace TSWorker{
     * @see spawnTaskFunction()
     *
     ***********************************************************/
-    Task* spawnTask(Task::TaskPriority taskPriority = Task::HIGH_PRIO, ClassParam&& ... taskClassArgs){
+    //Task* spawnTask(Priority taskPriority = Priority::High, ClassParam&& ... taskClassArgs){
        /* Task* newTask = new taskClass(taskClassArgs ...);
         newTask->setAsDynamicallyAllocated();
         newTask->subscribe(taskPriority);
         return newTask;*/
-    }
+   // }
 
 
     typedef void (*TaskFunction)(Task* thisTask);
@@ -452,7 +456,7 @@ namespace TSWorker{
     * @see spawnTask()
     *
     ***********************************************************/
-    Task* spawnTaskFunction(TaskFunction taskFunction, Task::TaskPriority taskPriority = Task::HIGH_PRIO);
+    Task* spawnTaskFunction(TaskFunction taskFunction, Priority taskPriority = Priority::High);
 
 
     /*****************************************************//**
