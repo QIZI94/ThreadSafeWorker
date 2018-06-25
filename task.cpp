@@ -64,7 +64,7 @@ namespace TSWorker{
                 return taskType.second.get();
             }
         }
-        
+
 
         Task* operator->(){
             if(taskType.first != nullptr){
@@ -176,9 +176,10 @@ namespace TSWorker{
                 lowPrio = 0;
             }
 
-
+            if(!lowPriorityTaskQueue.empty()){
             lowPrioTasks[lowPrio]->_execute();
             lowPrio++;
+            }
         }
 
 
@@ -214,30 +215,34 @@ namespace TSWorker{
 
     void Task::remove(){
 
-        /*struct AutoUnlocker{
-            Spinlock& spinlock;
-            AutoUnlocker(Spinlock& spin) : spinlock(spin){spinlock.lock();}
-            ~AutoUnlocker(){spinlock.unlock();}
+        switch(_taskPriority){
 
-        } autoUnlock(highModifiyLock);*/
-        highModifiyLock.lock();
-        for(auto it = highPriorityTaskQueue.begin(); it != highPriorityTaskQueue.end(); ++it){
-            if(it->get() == this){
-                it->get()->disable();
-                highPriorityTaskQueue.erase(it);
-                break;
-            }
+            case Priority::High:
+                highModifiyLock.lock();
+                for(auto it = highPriorityTaskQueue.begin(); it != highPriorityTaskQueue.end(); ++it){
+                    if(it->get() == this){
+                        it->get()->disable();
+                        highPriorityTaskQueue.erase(it);
+                        break;
+                    }
+                }
+                highModifiyLock.unlock();
+            break;
+
+            case Priority::Low:
+                lowModifiyLock.lock();
+                for(auto it = lowPriorityTaskQueue.begin(); it != lowPriorityTaskQueue.end(); ++it){
+                    if(it->get() == this){
+                        it->get()->disable();
+                        lowPriorityTaskQueue.erase(it);
+                        break;
+                    }
+                }
+                lowModifiyLock.unlock();
+            break;
+
         }
-/*
-        for(int i = 0; i < highPriorityTaskQueue.size(); i++){
-            if(highPriorityTaskQueue[i].get() == this){
 
-                highPriorityTaskQueue[i].get()->disable();
-                highPriorityTaskQueue.erase(highPriorityTaskQueue.begin() + i);
-            }
-        }*/
-
-     highModifiyLock.unlock();
     }
 
 
@@ -317,6 +322,12 @@ struct First : public TSWorker::Task{
         std::cout<<"1. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
         std::vector<int> v(100000);
         std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+        remove();
+    }
+    ~First(){
+        std::cout<<"Stack allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
+
+        exit(1);
     }
 
 };
@@ -327,6 +338,8 @@ struct Second : public TSWorker::Task{
 
 
         std::cout<<"low2. task("<<this<<")  - Thread: "<<std::dec <<std::this_thread::get_id()<<'\n';
+        //std::vector<int> v(100000);
+        //std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
     }
 
 };
@@ -378,8 +391,8 @@ int main(){
 
     First f;
     //f->subscribe(TSWorker::Priority::High);
-    TSWorker::Task::assign(f,TSWorker::Priority::High);
-    TSWorker::Task::assign(std::make_shared<First>(),TSWorker::Priority::High);
+   TSWorker::Task::assign(f,TSWorker::Priority::High);
+   //TSWorker::Task::assign(std::make_shared<First>(),TSWorker::Priority::High);
     Third* f2 = new Third;;
     //f2->subscribe(TSWorker::Priority::High);
     TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f2),TSWorker::Priority::High);
@@ -399,14 +412,17 @@ int main(){
     TSWorker::Task::create(
         [](TSWorker::Task* thisTask){
             std::cout<<"I am dinamically allocated task and you are not :D :D xD\n";
-            //thisTask->remove();
+
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+        thisTask->remove();
         },
-        TSWorker::Priority::High
+        TSWorker::Priority::Low
     );
 
 
     std::thread th1(tf);
-    std::thread th2(tf);
+    //std::thread th2(tf);
     std::thread th3(tf);
     while(1){
         TSWorker::Task::handle();
