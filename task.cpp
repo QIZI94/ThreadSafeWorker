@@ -43,7 +43,7 @@ namespace TSWorker{
         task_ptr(Task* ptr){
             taskType.first = ptr;
         }
-        task_ptr(std::shared_ptr<Task>& s_ptr){
+        task_ptr(const std::shared_ptr<Task>& s_ptr){
             taskType.second = s_ptr;
             taskType.first = nullptr;
         }
@@ -56,6 +56,15 @@ namespace TSWorker{
                 return taskType.second.get();
             }
         }
+        const Task* get() const{
+            if(taskType.first != nullptr){
+                return taskType.first;
+            }
+            else{
+                return taskType.second.get();
+            }
+        }
+        
 
         Task* operator->(){
             if(taskType.first != nullptr){
@@ -75,21 +84,11 @@ namespace TSWorker{
         }
         bool operator == (const task_ptr& tp){
 
-            if(taskType.first != nullptr){
-                return (taskType.first == tp.taskType.first);
-            }
-            else{
-                return (taskType.second == tp.taskType.second);
-            }
+            return (get() == tp.get());
 
         }
         bool operator != (const task_ptr& tp){
-            if(taskType.first != nullptr){
-                return (taskType.first != tp.taskType.first);
-            }
-            else{
-                return (taskType.second != tp.taskType.second);
-            }
+            return (get() != tp.get());
         }
         private:
 
@@ -98,10 +97,10 @@ namespace TSWorker{
     };
 
 
-    static std::vector<std::shared_ptr<Task>> highPriorityTaskQueue;
+    static std::vector<task_ptr> highPriorityTaskQueue;
     static Spinlock highModifiyLock;
 
-    static std::vector<std::shared_ptr<Task>> lowPriorityTaskQueue;
+    static std::vector<task_ptr> lowPriorityTaskQueue;
     static Spinlock lowModifiyLock;
 
 
@@ -138,8 +137,8 @@ namespace TSWorker{
 
     void Task::handle(){
         static thread_local size_t lowPrio = 0;
-        static thread_local std::vector<std::shared_ptr<Task>> highPrioTasks;
-        static thread_local std::vector<std::shared_ptr<Task>> lowPrioTasks;
+        static thread_local std::vector<task_ptr> highPrioTasks;
+        static thread_local std::vector<task_ptr> lowPrioTasks;
 
 
         if(!highPriorityTaskQueue.empty()){
@@ -193,13 +192,13 @@ namespace TSWorker{
 
             case Priority::High:
                 highModifiyLock.lock();
-                highPriorityTaskQueue.push_back(std::shared_ptr<Task>(this));
+                highPriorityTaskQueue.emplace_back(std::shared_ptr<Task>(this));
                 highModifiyLock.unlock();
             break;
 
             case Priority::Low:
                 lowModifiyLock.lock();
-                lowPriorityTaskQueue.push_back(std::shared_ptr<Task>(this));
+                lowPriorityTaskQueue.emplace_back(std::shared_ptr<Task>(this));
                 lowModifiyLock.unlock();
             break;
 
@@ -275,20 +274,35 @@ namespace TSWorker{
 
             case Priority::High:
                 highModifiyLock.lock();
-                highPriorityTaskQueue.push_back(newTask);
+                highPriorityTaskQueue.emplace_back(newTask);
                 highModifiyLock.unlock();
             break;
 
             case Priority::Low:
                 lowModifiyLock.lock();
-                lowPriorityTaskQueue.push_back(newTask);
+                lowPriorityTaskQueue.emplace_back(newTask);
                 lowModifiyLock.unlock();
             break;
 
         }
     }
     void Task::assign(Task& newTask, Priority taskPriority){
+        newTask._taskPriority = taskPriority;
+        switch(taskPriority){
 
+            case Priority::High:
+                highModifiyLock.lock();
+                highPriorityTaskQueue.emplace_back(&newTask);
+                highModifiyLock.unlock();
+            break;
+
+            case Priority::Low:
+                lowModifiyLock.lock();
+                lowPriorityTaskQueue.emplace_back(&newTask);
+                lowModifiyLock.unlock();
+            break;
+
+        }
     }
 
 }
@@ -362,9 +376,9 @@ int main(){
 
 
 
-    First* f = new First;
+    First f;
     //f->subscribe(TSWorker::Priority::High);
-    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f),TSWorker::Priority::High);
+    TSWorker::Task::assign(f,TSWorker::Priority::High);
     TSWorker::Task::assign(std::make_shared<First>(),TSWorker::Priority::High);
     Third* f2 = new Third;;
     //f2->subscribe(TSWorker::Priority::High);
