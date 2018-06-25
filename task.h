@@ -344,8 +344,8 @@ namespace TSWorker{
             static void handle();
 
 
-            static std::shared_ptr<Task> create(std::function<void(Task*)> taskFunction, Priority taskPriority);
-            static void assign(std::shared_ptr<Task> newTask, Priority taskPriority);
+            static std::shared_ptr<Task> create(const std::function<void(Task*)>& taskFunction, Priority taskPriority);
+            static void assign(const std::shared_ptr<Task>& newTask, Priority taskPriority);
             static void assign(Task& newTask, Priority taskPriority);
 
         protected:

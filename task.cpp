@@ -154,7 +154,6 @@ namespace TSWorker{
                 }
             }
 
-
             for(auto& task : highPrioTasks){
 
                 task->_execute();
@@ -245,11 +244,13 @@ namespace TSWorker{
 
 
 
-    std::shared_ptr<Task> createTask(std::function<void(Task*)> taskFunction, Priority taskPriority = Priority::High){
+
+
+    std::shared_ptr<Task> Task::create(const std::function<void(Task*)>& taskFunction, Priority taskPriority){
         struct FunctionTask : public Task{
             std::function<void(Task*)> func;
 
-            FunctionTask(std::function<void(Task*)> taskFunc) : func(taskFunc){}
+            FunctionTask(const std::function<void(Task*)>& taskFunc) : func(taskFunc){}
             void run(){
                 func(this);
             }
@@ -264,6 +265,12 @@ namespace TSWorker{
         };
 
         auto newTask = std::make_shared<FunctionTask>(taskFunction);
+        assign(newTask,taskPriority);
+
+        return newTask;
+    }
+    void Task::assign(const std::shared_ptr<Task>& newTask, Priority taskPriority){
+        newTask->_taskPriority = taskPriority;
         switch(taskPriority){
 
             case Priority::High:
@@ -279,8 +286,8 @@ namespace TSWorker{
             break;
 
         }
-
-        return newTask;
+    }
+    void Task::assign(Task& newTask, Priority taskPriority){
 
     }
 
@@ -355,27 +362,34 @@ int main(){
 
 
 
-    First f;
-    f.subscribe(TSWorker::Priority::High);
-    Third f2;
-    f2.subscribe(TSWorker::Priority::High);
-    Fourh f3;
-    f3.subscribe(TSWorker::Priority::High);
-   /* Fourh f4;
-    f3.subscribe(TSWorker::Task::HIGH_PRIO);*/
+    First* f = new First;
+    //f->subscribe(TSWorker::Priority::High);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f),TSWorker::Priority::High);
+    TSWorker::Task::assign(std::make_shared<First>(),TSWorker::Priority::High);
+    Third* f2 = new Third;;
+    //f2->subscribe(TSWorker::Priority::High);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f2),TSWorker::Priority::High);
+    Fourh* f3 = new Fourh;
+    //f3->subscribe(TSWorker::Priority::High);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f3),TSWorker::Priority::High);
 
-    Second s;
-    s.subscribe(TSWorker::Priority::Low);
-    Fifth s2;
-    s2.subscribe(TSWorker::Priority::Low);
 
-    TSWorker::createTask(
+    Second* s = new Second;
+    //s->subscribe(TSWorker::Priority::Low);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(s),TSWorker::Priority::Low);
+    Fifth* s2 = new Fifth;
+    //s2->subscribe(TSWorker::Priority::Low);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(s2),TSWorker::Priority::Low);
+
+
+    TSWorker::Task::create(
         [](TSWorker::Task* thisTask){
             std::cout<<"I am dinamically allocated task and you are not :D :D xD\n";
             //thisTask->remove();
         },
         TSWorker::Priority::High
     );
+
 
     std::thread th1(tf);
     std::thread th2(tf);
