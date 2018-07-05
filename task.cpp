@@ -30,9 +30,9 @@
 #include <chrono>
 
 #include "task.h"
-
-
 #include <stdio.h>
+
+
 
 namespace TSWorker{
 
@@ -40,59 +40,36 @@ namespace TSWorker{
 
         public:
 
-        task_ptr(Task* ptr){
-            taskType.first = ptr;
-        }
-        task_ptr(const std::shared_ptr<Task>& s_ptr){
-            taskType.second = s_ptr;
-            taskType.first = nullptr;
+        constexpr task_ptr(Task* ptr) : task(ptr){}
+        task_ptr(const std::shared_ptr<Task>& s_ptr) : shared_task(s_ptr){
+            task = s_ptr.get();
         }
 
         Task* get(){
-            if(taskType.first != nullptr){
-                return taskType.first;
-            }
-            else{
-                return taskType.second.get();
-            }
+            return task;
         }
         const Task* get() const{
-            if(taskType.first != nullptr){
-                return taskType.first;
-            }
-            else{
-                return taskType.second.get();
-            }
+            return task;
         }
 
 
         Task* operator->(){
-            if(taskType.first != nullptr){
-                return taskType.first;
-            }
-            else{
-                return taskType.second.get();
-            }
+            return task;
         }
         Task& operator *(){
-            if(taskType.first != nullptr){
-                return *taskType.first;
-            }
-            else{
-                return *taskType.second.get();
-            }
+            return *task;
         }
         bool operator == (const task_ptr& tp){
 
-            return (get() == tp.get());
+            return (task == tp.get());
 
         }
         bool operator != (const task_ptr& tp){
-            return (get() != tp.get());
+            return (task != tp.get());
         }
         private:
-
-        std::pair<Task*, std::shared_ptr<Task> > taskType;
+        Task* task;
+        std::shared_ptr<Task> shared_task;
 
     };
 
@@ -106,12 +83,13 @@ namespace TSWorker{
 
     Task::Task(){
         _isEnabled = true;
+        _isAssigned = false;
     }
 
     Task::~Task(){
 
-    }
 
+    }
 
 
 
@@ -186,32 +164,6 @@ namespace TSWorker{
 
 
     }
-//template <class T>
-    void Task::subscribe(const Priority taskPriority){
-        _taskPriority = taskPriority;
-        switch(taskPriority){
-
-            case Priority::High:
-                highModifiyLock.lock();
-                highPriorityTaskQueue.emplace_back(std::shared_ptr<Task>(this));
-                highModifiyLock.unlock();
-            break;
-
-            case Priority::Low:
-                lowModifiyLock.lock();
-                lowPriorityTaskQueue.emplace_back(std::shared_ptr<Task>(this));
-                lowModifiyLock.unlock();
-            break;
-
-        }
-
-    }
-
-
-
-
-
-
 
     void Task::remove(){
 

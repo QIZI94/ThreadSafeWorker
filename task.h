@@ -408,8 +408,7 @@ namespace TSWorker{
 
             //std::vector<std::shared_ptr>///< pointer to dependency which will be executed before this Task
             std::atomic_bool    _isEnabled;                 ///< is used to check if Task is enabled or to ingnored it if not
-
-            bool                _isDynamicallyAllocated;    ///< this prevents unintentional deletion of static or stack allocated objects
+            std::atomic_bool    _isAssigned;
             Priority            _taskPriority;              ///< is used to check if Task is high priority
 
 
