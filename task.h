@@ -25,8 +25,11 @@
 #include <ctime>
 #include <mutex>
 #include <iostream>
-#include "spinlock.hpp"
 #include <memory>
+#include <functional>
+
+#include "spinlock.h"
+
 #define TASK_FUNCTION(funcname) void funcname(TSWorker::Task* thisTask)
 #define TASK_LAMBDA(capture)    [capture](TSWorker::Task* thisTask)
 
@@ -182,19 +185,8 @@ namespace TSWorker{
 
 
 
-            /*****************************************************//**
-            * This function will add this to pending addition list
-            *  and will be added when 'MasterTask' routine will add it to task queue.
-            *
-            * @param taskPriority - Task priority to which will Task be subscribe.
-            *
-            * @note Can be used when removed by remove() function.
-            *
-            * @see remove()
-            * @see removeAndDelete()
-            *
-            ***********************************************************/
-            void subscribe(const Priority taskPriority);
+           
+       
 
 
 
@@ -343,10 +335,54 @@ namespace TSWorker{
             ***********************************************************/
             static void handle();
 
-
+             /*****************************************************//**
+            * This function will add this to pending addition list
+            *  and will be added when 'MasterTask' routine will add it to task queue.
+            *
+            * @param taskFunction    - function which will be called when task is selected by thread.
+            * @param taskPriority    - Task priority to which will Task be subscribe.
+            *
+            * @note Can be used when removed by remove() function.
+            *
+            * @see remove()
+            * @see removeAndDelete()
+            *
+            ***********************************************************/
             static std::shared_ptr<Task> create(const std::function<void(Task*)>& taskFunction, Priority taskPriority);
+
+             /*****************************************************//**
+            * This function will add this to pending addition list
+            *  and will be added when 'MasterTask' routine will add it to task queue.
+            *
+            * @param taskFunction    - function which will be called when task is selected by thread.
+            * @param deleterFunction - function which will be called when task being erased from internal list(basically destructor).
+            * @param taskPriority - Task priority to which will Task be subscribe.
+            *
+            * @note Can be used when removed by remove() function.
+            *
+            * @see remove()
+            * @see removeAndDelete()
+            *
+            ***********************************************************/
+            static std::shared_ptr<Task> create(const std::function<void(Task*)>& taskFunction,const std::function<void(Task*)>& deleterFunction, Priority taskPriority);
+
+             /*****************************************************//**
+            * 
+            *  
+            *
+            * @param taskPriority - Task priority to which will Task be assign.
+            *
+            * @note Can be used when removed by remove() function.
+            *
+            * @see remove()
+            * @see removeAndDelete()
+            *
+            ***********************************************************/
             static void assign(const std::shared_ptr<Task>& newTask, Priority taskPriority);
+            
             static void assign(Task& newTask, Priority taskPriority);
+
+            static void assign_multi(Priority taskPriority);
 
         protected:
             /*****************************************************//**
@@ -373,8 +409,6 @@ namespace TSWorker{
             void executeAgain();
 
         private:
-
-            enum TaskRemoveMode {NOACTION_MODE = 0, REMOVE_MODE = 1, DELETE_MODE = 2};
 
 
             /*****************************************************//**

@@ -1,199 +1,130 @@
 #include "task.h"
 
+
 #include <thread>
-#include <iostream>
+#include <algorithm>
+struct First : public TSWorker::Task{
 
-
-struct test1 : TSWorker::Task{
-
-    test1() {
-        subscribe(TSWorker::Task::HIGH_PRIO);
-    }
-    private:
     void run(){
-        std::cout<<"I am here, thread: "<<" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
-      //  testVar++;
-        //getchar();
-       // std::cout<<"Time = "<<timeOfStart<<'\n';
+        std::cout<<"1. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+        remove();
+    }
+    ~First(){
+        std::cout<<"Stack allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
+
+        exit(1);
+    }
+
+};
+
+struct Second : public TSWorker::Task{
+
+    void run(){
+
+
+        std::cout<<"low2. task("<<this<<")  - Thread: "<<std::dec <<std::this_thread::get_id()<<'\n';
+        //std::vector<int> v(100000);
+        //std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+    }
+
+};
+
+struct Third : public TSWorker::Task{
+
+    void run(){
+        std::cout<<"3. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
     }
 
 };
 
 
-struct test2 : TSWorker::Task{
+struct Fourh : public TSWorker::Task{
 
-    test2() {
-       //subscribe(TSWorker::Task::HIGH_PRIO);
-
-    }
-    private:
-    volatile unsigned char c = 0;
     void run(){
-
-        std::cout<<"And also am I /************************... "<<" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
-
-        //getchar();
-        //remove();
-        if(c > 0){
-            std::cout<<"Duplicated execution"<<'\n';
-            std::cin.get();
-            std::cin.get();
-
-        }
-        c++;
-
-        removeAndDelete();
-
-
-      //  new test2;
-     //  while(1);
-
-    }
-    ~test2(){
-       // std::cout<<"Deleting: "<<this<<'\n';
+        std::cout<<"4. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
     }
 
 };
 
 
-struct test3 : TSWorker::Task{
-    int count;
-    test3(int count){
-        this->count = count;
-    }
-    void run(){
-        std::cout<<"Test3 count variable is set to '"<<count<<"'\n";
-        removeAndDelete();
+struct Fifth : public TSWorker::Task{
 
+    void run(){
+        std::cout<<"low5. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
     }
+
 };
 
-struct task0 : public TSWorker::Task{
 
-    void run(){
-        subscribe(TSWorker::Task::LOW_PRIO);
-        std::cout<<"This si ###historytask###\n";
-
-    }
-
-} t0;
-
-struct taskA : public TSWorker::Task{
-    taskA(){
-        subscribe(TSWorker::Task::LOW_PRIO);
-        //addDependency(&t0);
-
-    }
-    void run(){
-        //subscribe(TSWorker::Task::LOW_PRIO);
-        std::cout<<"This si ###pretask###\n";
-
-
-    }
-
-} ta;
-struct taskB : public TSWorker::Task{
-    taskB(){
-        subscribe(TSWorker::Task::LOW_PRIO);
-
-    }
-    void run(){
-        std::cout<<"This si ###midtask###\n";
-
-
-       // killDependency();
-        //while(1);
-
-    }
-
-} tb ;
-
-
-struct taskC : public TSWorker::Task{
-    bool depAdded = false;
-    taskC(){
-        subscribe(TSWorker::Task::LOW_PRIO);
-        //addDependency(&tb);
-       // addDependency(&ta);
-
-    }
-    void run(){
-        if(depAdded == false){
-          // addDependency(&t0, &ta);
-            depAdded = true;
-        }
-        else{
-           // breakDependency();
-
-        }
-        std::cout<<"This si ###posttask###"<<" address:" <<this<<"  thread: "<<std::this_thread::get_id()<<'\n';
-
-       // killDependency();
-    }
-
-} tc ;
-
-TASK_FUNCTION(taskFn){
-//void taskFn(TSWorker::Task* task){
-    thisTask->removeAndDelete();
-    std::cout<<"This is taskFunction@@@@@@@@@@@@@@@@@@@\n";
-}
-
-void threadFunction(){
-    while(TSWorker::taskHandler() == true);
-}
 
 int main(){
+   // std::cout<<"Sizeof: "<<sizeof(TSWorker::task_ptr)<<'\n';
+    getchar();
+    auto tf = [](){
 
-    std::cout<<"Sizeof Task: "<<sizeof(TSWorker::Task)<<'\0';
-   std::cin.get();
-    //test1* t1 = new test1;
-
-
-    test1 t1;
-    t1.addDependency(&ta);
-    TSWorker::setLowPriorityTaskTimeOut(0);
-    TSWorker::setHighPriorityTaskTimeOut(0);
-   // t1.subscribe(TSWorker::Task::LOW_PRIO);
- //   TSWorker::Task* ts = new test2;
-
-    //ts->subscribe(TSWorker::Task::LOW_PRIO);*/
-    //new test2;
-    std::thread th1(threadFunction);
-    std::thread th2(threadFunction);
-    std::thread th3(threadFunction);
+        while(1){
+            TSWorker::Task::handle();
+        }
+    };
 
 
-    /*std::thread th4(threadFunction);
-    std::thread th5(threadFunction);
-    std::thread th6(threadFunction);
-    std::thread th7(threadFunction);*/
 
-    std::chrono::steady_clock::time_point timeOfStart = std::chrono::steady_clock::now();
+    First f;
+    //f->subscribe(TSWorker::Priority::High);
+   TSWorker::Task::assign(f,TSWorker::Priority::High);
+   //TSWorker::Task::assign(std::make_shared<First>(),TSWorker::Priority::High);
+    Third* f2 = new Third;;
+    //f2->subscribe(TSWorker::Priority::High);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f2),TSWorker::Priority::High);
+    Fourh* f3 = new Fourh;
+    //f3->subscribe(TSWorker::Priority::High);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f3),TSWorker::Priority::High);
 
 
-    th1.detach();
-    th2.detach();
-    th3.detach();
-   /* th4.detach();
-    th5.detach();
-    th6.detach();
-    th7.detach();*/
+    Second* s = new Second;
+    //s->subscribe(TSWorker::Priority::Low);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(s),TSWorker::Priority::Low);
+    Fifth* s2 = new Fifth;
+    //s2->subscribe(TSWorker::Priority::Low);
+    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(s2),TSWorker::Priority::Low);
 
+
+    TSWorker::Task::create(
+        [](TSWorker::Task* thisTask){
+            std::cout<<"I am dinamically allocated task\n";
+
+        std::vector<int> v(100000);
+        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
+        thisTask->remove();
+        },
+        TSWorker::Priority::Low
+    );
+
+
+    std::thread th1(tf);
+    //std::thread th2(tf);
+    std::thread th3(tf);
+    while(1){
+        TSWorker::Task::handle();
+    }
+
+
+}
+
+/*
 
 
     for(;;){
         if(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - timeOfStart).count() > 10000){
-          /* new test2;
-           new test2;
-           new test2;
-           new test2;
-           new test2;
-           new test2;
-           new test2;
-           new test2;
-           new test2;
-*/
+   
             TSWorker::spawnTaskFunction(taskFn, TSWorker::Task::HIGH_PRIO);
             TSWorker::spawnTaskFunction(TASK_LAMBDA(){std::cout<<"This is lambda function&&&&&&&&&&&&&&&&&&&&&&&\n"; thisTask->removeAndDelete();}
                                         ,TSWorker::Task::HIGH_PRIO);
@@ -218,3 +149,4 @@ int main(){
 
     }
 }
+*/

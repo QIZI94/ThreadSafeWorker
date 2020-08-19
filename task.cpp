@@ -26,11 +26,11 @@
 #include <inttypes.h>
 #include <iostream>
 #include <memory>
-#include <functional>
+
 #include <chrono>
 
 #include "task.h"
-#include <stdio.h>
+
 
 
 
@@ -39,36 +39,37 @@ namespace TSWorker{
     class task_ptr{
 
         public:
+        //stack/static allocated
+        explicit task_ptr(Task* ptr) : shared_task(ptr,[](Task*){}){} 
 
-        constexpr task_ptr(Task* ptr) : task(ptr){}
-        task_ptr(const std::shared_ptr<Task>& s_ptr) : shared_task(s_ptr){
-            task = s_ptr.get();
-        }
-
-        Task* get(){
-            return task;
-        }
-        const Task* get() const{
-            return task;
-        }
-
+        //heap allocated
+        explicit task_ptr(const std::shared_ptr<Task>& s_ptr) : shared_task(s_ptr){}
 
         Task* operator->(){
-            return task;
+            return shared_task.get();
         }
         Task& operator *(){
-            return *task;
+            return *shared_task;
         }
         bool operator == (const task_ptr& tp){
 
-            return (task == tp.get());
+            return (shared_task == tp.shared_task);
 
         }
         bool operator != (const task_ptr& tp){
-            return (task != tp.get());
+            return (shared_task != tp.shared_task);
         }
+
+        bool operator == (const Task* other){
+
+            return (shared_task.get() == other);
+
+        }
+        bool operator != (const Task* other){
+            return (shared_task.get() != other);
+        }
+
         private:
-        Task* task;
         std::shared_ptr<Task> shared_task;
 
     };
@@ -155,14 +156,10 @@ namespace TSWorker{
             }
 
             if(!lowPriorityTaskQueue.empty()){
-            lowPrioTasks[lowPrio]->_execute();
-            lowPrio++;
+                lowPrioTasks[lowPrio]->_execute();
+                lowPrio++;
             }
         }
-
-
-
-
     }
 
     void Task::remove(){
@@ -172,8 +169,8 @@ namespace TSWorker{
             case Priority::High:
                 highModifiyLock.lock();
                 for(auto it = highPriorityTaskQueue.begin(); it != highPriorityTaskQueue.end(); ++it){
-                    if(it->get() == this){
-                        it->get()->disable();
+                    if((*it) == this){
+                        (*it)->disable();
                         highPriorityTaskQueue.erase(it);
                         break;
                     }
@@ -184,8 +181,8 @@ namespace TSWorker{
             case Priority::Low:
                 lowModifiyLock.lock();
                 for(auto it = lowPriorityTaskQueue.begin(); it != lowPriorityTaskQueue.end(); ++it){
-                    if(it->get() == this){
-                        it->get()->disable();
+                    if((*it) == this){
+                        (*it)->disable();
                         lowPriorityTaskQueue.erase(it);
                         break;
                     }
@@ -196,11 +193,6 @@ namespace TSWorker{
         }
 
     }
-
-
-
-
-
 
     std::shared_ptr<Task> Task::create(const std::function<void(Task*)>& taskFunction, Priority taskPriority){
         struct FunctionTask : public Task{
@@ -213,7 +205,7 @@ namespace TSWorker{
 
             ~FunctionTask(){
 
-                std::cout<<"Dinammically allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
+                //std::cout<<"Dinammically allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
 
                 //exit(1);
             }
@@ -221,6 +213,31 @@ namespace TSWorker{
         };
 
         auto newTask = std::make_shared<FunctionTask>(taskFunction);
+        assign(newTask,taskPriority);
+
+        return newTask;
+    }
+
+    std::shared_ptr<Task> Task::create(const std::function<void(Task*)>& taskFunction, const std::function<void(Task*)>& deleterFunction, Priority taskPriority){
+        struct FunctionTask : public Task{
+            std::function<void(Task*)> func;
+
+            FunctionTask(const std::function<void(Task*)>& taskFunc) : func(taskFunc){}
+            void run(){
+                func(this);
+            }
+
+            ~FunctionTask(){
+
+                //std::cout<<"Dinammically allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
+
+                //exit(1);
+            }
+
+        };
+
+        //auto newTask = std::make_shared<FunctionTask>(taskFunction);
+        std::shared_ptr<FunctionTask> newTask(new FunctionTask(taskFunction), deleterFunction);
         assign(newTask,taskPriority);
 
         return newTask;
@@ -261,124 +278,5 @@ namespace TSWorker{
 
         }
     }
-
-}
-
-
-
-#include <thread>
-#include <algorithm>
-struct First : public TSWorker::Task{
-
-    void run(){
-        std::cout<<"1. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
-        std::vector<int> v(100000);
-        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
-        remove();
-    }
-    ~First(){
-        std::cout<<"Stack allloccccated task has been deleted by "<<std::this_thread::get_id()<<"\n";
-
-        exit(1);
-    }
-
-};
-
-struct Second : public TSWorker::Task{
-
-    void run(){
-
-
-        std::cout<<"low2. task("<<this<<")  - Thread: "<<std::dec <<std::this_thread::get_id()<<'\n';
-        //std::vector<int> v(100000);
-        //std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
-    }
-
-};
-
-struct Third : public TSWorker::Task{
-
-    void run(){
-        std::cout<<"3. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
-        std::vector<int> v(100000);
-        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
-    }
-
-};
-
-
-struct Fourh : public TSWorker::Task{
-
-    void run(){
-        std::cout<<"4. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
-        std::vector<int> v(100000);
-        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
-    }
-
-};
-
-
-struct Fifth : public TSWorker::Task{
-
-    void run(){
-        std::cout<<"low5. task("<<this<<")  - Thread: "<<std::this_thread::get_id()<<'\n';
-        std::vector<int> v(100000);
-        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
-    }
-
-};
-
-
-
-int main(){
-
-    auto tf = [](){
-
-        while(1){
-            TSWorker::Task::handle();
-        }
-    };
-
-
-
-    First f;
-    //f->subscribe(TSWorker::Priority::High);
-   TSWorker::Task::assign(f,TSWorker::Priority::High);
-   //TSWorker::Task::assign(std::make_shared<First>(),TSWorker::Priority::High);
-    Third* f2 = new Third;;
-    //f2->subscribe(TSWorker::Priority::High);
-    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f2),TSWorker::Priority::High);
-    Fourh* f3 = new Fourh;
-    //f3->subscribe(TSWorker::Priority::High);
-    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(f3),TSWorker::Priority::High);
-
-
-    Second* s = new Second;
-    //s->subscribe(TSWorker::Priority::Low);
-    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(s),TSWorker::Priority::Low);
-    Fifth* s2 = new Fifth;
-    //s2->subscribe(TSWorker::Priority::Low);
-    TSWorker::Task::assign(std::shared_ptr<TSWorker::Task>(s2),TSWorker::Priority::Low);
-
-
-    TSWorker::Task::create(
-        [](TSWorker::Task* thisTask){
-            std::cout<<"I am dinamically allocated task and you are not :D :D xD\n";
-
-        std::vector<int> v(100000);
-        std::transform(v.begin(), v.end(), v.begin(),   [](int) { return rand(); });
-        thisTask->remove();
-        },
-        TSWorker::Priority::Low
-    );
-
-
-    std::thread th1(tf);
-    //std::thread th2(tf);
-    std::thread th3(tf);
-    while(1){
-        TSWorker::Task::handle();
-    }
-
 
 }
