@@ -2,19 +2,19 @@
 
 ## Description:
 As the name implies, it's concept of workers/tasks that are created at one place and handled at another place.
-Tasks are executed with taskHandler() function, which can be put on multiple threads in the same time.
+Tasks are executed with handle() function, which can be put on multiple threads in the same time.
 This make it very suitable in setups such as thread-pools (other uses are not restricted).
 
 ## Features:
-1. A round based Task execution, which ensures that every single Task is executed only once in the same round and that TaskQueue is only modified when no Task is executing(at the end of the round).
+1. Execution base on race condition, stored in the trhead_local read-only list which only updates from write-only list once thread is done executing tasks.
 2. Adding and removing Tasks during run-time.
 3. Managed deletion of Task's allocated memory.
 4. Enabling and disabling Tasks.
 5. Task's Dependency (adding, removing and execution).
-6. Optional ignoring/skipping the task if execution takes too long (it will starts the new round without waiting for Task).
-7. Priority based Task handling:
- *  a) HIGH_PRIO - Task will be executed as fast as possible taskHandler() function( suitable for low latency Tasks).
- *  b) LOW_PRIO  - Only one Task is executed per taskHandler() function (suitable for high latency Tasks,
+<!--6. Optional ignoring/skipping the task if execution takes too long (it will starts the new round without waiting for Task).-->
+6. Priority based Task handling:
+ *  a) High - Task will be executed as fast as possible taskHandler() function( suitable for low latency Tasks).
+ *  b) Low  - Only one Task is executed per taskHandler() function (suitable for high latency Tasks,
 	   usually beneficial for Tasks with timers that that use milliseconds or seconds precision).
 
 ## Examples and Usage
@@ -22,7 +22,7 @@ This make it very suitable in setups such as thread-pools (other uses are not re
 
 ### Basic use case:
 
-Basic usage where only one thread(main thread) is used for task handling with only two high priority and two low priority tasks:
+Basic usage where only one thread(main thread) is used for task handling with one high priority and one low priority task:
 ```C++
 #include "Task.h"
 #include <iostream>
@@ -42,21 +42,22 @@ class hpTestTask : public TSWorker::Task{
 
 int main(){
 
-	lpTestTask lptt1;
-	lpTestTask lptt2;
-
-	lptt1.subscribe(TSWorker::Task::LOW_PRIO); /// lptt will be added to low priority list
-	lptt1.subscribe(TSWorker::Task::LOW_PRIO); /// lptt will be added to low priority list
+	lpTestTask lptt;
 
 
-	hpTestTask hptt1;
-	hpTestTask hptt2;
+	TSWorker::Task::assign(lptt, TSWorker::Task::Low); /// lptt will be added to low priority list
+	
 
-	hptt1.subscribe(TSWorker::Task::HIGH_PRIO); /// lptt will be added to high priority list
-	hptt2.subscribe(TSWorker::Task::HIGH_PRIO); /// hptt will be added to high priority list
+
+	hpTestTask hptt;
+
+
+	TSWorker::Task::assign(hptt, TSWorker::Task::High); /// hptt will be added to high priority list
+	
 
 	/// taskHandler will execute all high priority Tasks but only one low priority Task per cycle.
-	while(TSWorker::taskHandler() == true){
+	while(true){
+		TSWorker::Task::handle();
 		//do some other stuff that is not suitable for being Task.
 	}
 
@@ -74,8 +75,8 @@ We can make Tasks execute asynchronously by adding extra threads that will execu
 ...
 
 void threadFunction(){
-	while(TSWorker::taskHandler()){
-
+	while(true){
+		TSWorker::Task::handle()
 	}
 }
 
@@ -96,7 +97,8 @@ int main(){
 	...
 
 /// taskHandler will execute all high priority Tasks but only one low priority Task per cycle.
-	while(TSWorker::taskHandler() == true){
+	while(true){
+		TSWorker::Task::handle();
 		//do some other stuff that is not suitable for being Task.
 	}
 
@@ -116,7 +118,7 @@ class TestTask : public TSWorker::Task{
 
 ...
 ///main()
-TSWorker::spawnTask<TestTask>(TSWorker::Task::HIGH_PRIO);
+TSWorker::Task::assign(std::make_shared<lpTestTask>(), TSWorker::Task::High); /// allocated task of type lpTestTask will be added to high priority list
 ...
 
 ```
@@ -130,8 +132,8 @@ class oneTimeTask : public TSWorker::Task{
 	void run(){
 		std::cout<<"This task is going to be executed only once"<<std::endl;
 
-		//mark this Task as ready to be deleted and it will be deleted after all high priority Task are executed and before new round is started
-		removeAndDelete();
+		//set as disabled and remove this task from task list which it belong to
+		remove();
 	}
 
 }
@@ -139,7 +141,7 @@ class oneTimeTask : public TSWorker::Task{
 
 int main(){
 	...
-	spawnTask<oneTimeTask>(TSWorker::Task::HIGH_PRIO);
+	TSWorker::Task::assign(std::make_shared<hpTestTask>(), TSWorker::Task::High); /// allocated task of type oneTimeTask will be added to high priority list
 	...
 }
 
@@ -166,14 +168,14 @@ class ParamTask : public TSWorker::Task{
 
 ...
 //main
-TSWorker::spawnTask<ParamTask>(TSWorker::Task::HIGH_PRIO, 8.658f, 3.14f); //passing parameters after Task priority
+TSWorker::Task::assign(std::make_shared<hpTestTask>(8.658f, 3.14f), TSWorker::Task::High); //passing parameters via std::make_shared
 ...
 ```
 
  
 
 
-### Task Dependencies
+### Task Dependencies(not yet implemented)
 
 	Dependencies are useful in case that you have multi threaded task handling but you still need some Tasks that need to be executed in context.
 	Task that have dependencies and is subscribed to taskHandler lists will first execute run() function from all dependencies,
@@ -209,7 +211,7 @@ int main{
 
 	mainTask mt;
 	mt.addDependency(&dt1, &dt2, &dt3); // same as mt.addDependency(&dt1); ,  mt.addDependency(&dt2); ... etc.
-	mt.subscribe(TSWorker::Task::HIGH_PRIO);
+	TSWorker::Task::assign(mt ,TSWorker::Task::High);
 
 	...
 
@@ -229,10 +231,10 @@ Dependencies can be also removed, added right after Task that have dependencies 
 	...
 ```
 
-
+<!---
 ### Tips and Tricks
 
-Task can be declared globally and add itself to handled tasks in construction phase:
+Task can be declared globally and add itself to handled tasks in construction phase:(after recent changes not recommended yet)
 ```C++
 //inside some cpp file
 ...
@@ -274,3 +276,4 @@ tD.addDependency(&tC);
 tD.subscribe(...some priority);
 
 ```
+-->

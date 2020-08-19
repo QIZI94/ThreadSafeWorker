@@ -110,8 +110,10 @@ int main(){
 
 
     std::thread th1(tf);
+    th1.detach();
     //std::thread th2(tf);
     std::thread th3(tf);
+    th3.detach();
     while(1){
         TSWorker::Task::handle();
     }
